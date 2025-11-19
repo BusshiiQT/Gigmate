@@ -1,40 +1,47 @@
-/* Tailwind v4 core layers */
 @import "tailwindcss/preflight";
 @import "tailwindcss/utilities";
 
-/* ---- App customizations ---- */
+/* Base text colors */
+html, body { height: 100%; }
 
-/* App background: subtle paper with top glow is handled in layout via a div. */
-:root {
-  --app-bg: #ffffff;
+/* Light default text */
+body { color: #0b1220; }
+
+/* Dark mode defaults */
+:root { --app-bg: #ffffff; }
+.bg-app { background: var(--app-bg); }
+
+:root.dark {
+  --app-bg: #0b0f14;
 }
 
-html,
-body {
-  height: 100%;
-}
+/* Ensure readable text in dark */
+.dark body { color: #e5e7eb; } /* gray-200 */
 
-/* Use the font variable from next/font in layout */
-body {
-  font-family: var(--font-app), ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans",
-    "Apple Color Emoji", "Segoe UI Emoji";
-  background: var(--app-bg);
-}
-
-/* Reusable card style */
+/* Reusable card style (light + dark) */
 .card {
   @apply rounded-2xl border bg-white p-6;
 }
-
-/* Slightly larger touch targets on mobile */
-button,
-.btn {
-  @apply min-h-[40px];
+.dark .card {
+  @apply border-white/10 bg-[#0f141a];
 }
 
-/* Tables: tighter look on desktop */
-table th,
-table td {
-  @apply align-middle;
+/* Buttons: slightly larger touch targets on mobile */
+button, .btn { @apply min-h-[40px]; }
+
+/* Tables */
+table th, table td { @apply align-middle; }
+
+/* Generic card style fallback */
+.card {
+  border-radius: 1.5rem;
+  padding: 1rem;
+  background-color: rgba(248, 250, 252, 0.9); /* slate-50-ish */
+  border: 1px solid rgba(148, 163, 184, 0.4);
 }
+
+.dark .card {
+  background-color: #020617; /* slate-950 */
+  border-color: #334155;     /* slate-700 */
+}
+

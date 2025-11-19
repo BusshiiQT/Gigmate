@@ -1,28 +1,47 @@
+// components/StatsCards.tsx
 "use client";
 
-import { formatCurrency, effectiveHourlyRateCents } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 
-export default function StatsCards(props: {
+type StatsCardsProps = {
   gross_cents: number;
-  expenses_cents: number; // tax + fuel + mileage deduction if you choose (for now: fuel + tax)
+  expenses_cents: number;
   net_cents: number;
   hours: number;
-}) {
-  const hourly = effectiveHourlyRateCents(props.net_cents, props.hours);
+};
 
-  const Item = ({ label, value }: { label: string; value: string }) => (
-    <div className="rounded-lg border bg-white p-4">
-      <div className="text-sm text-gray-500">{label}</div>
-      <div className="text-xl font-semibold">{value}</div>
-    </div>
-  );
+export default function StatsCards({
+  gross_cents,
+  expenses_cents,
+  net_cents,
+  hours,
+}: StatsCardsProps) {
+  const cards = [
+    { label: "Gross", value: formatCurrency(gross_cents) },
+    { label: "Est. Expenses", value: formatCurrency(expenses_cents) },
+    { label: "Net Profit", value: formatCurrency(net_cents) },
+    {
+      label: "Effective Hourly",
+      value:
+        hours > 0 ? formatCurrency(Math.round(net_cents / hours)) : "$0.00",
+    },
+  ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <Item label="Gross" value={formatCurrency(props.gross_cents)} />
-      <Item label="Est. Expenses" value={formatCurrency(props.expenses_cents)} />
-      <Item label="Net Profit" value={formatCurrency(props.net_cents)} />
-      <Item label="Effective Hourly" value={formatCurrency(hourly)} />
-    </div>
+    <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {cards.map((c) => (
+        <div
+          key={c.label}
+          className="rounded-3xl border bg-slate-100/90 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+        >
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
+            {c.label}
+          </p>
+          <p className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">
+            {c.value}
+          </p>
+        </div>
+      ))}
+    </section>
   );
 }
