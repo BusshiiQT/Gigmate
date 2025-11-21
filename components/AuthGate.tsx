@@ -5,29 +5,48 @@ import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
-  const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState<any>(null);
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [authed, setAuthed] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    let mounted = true;
+
+    // Initial session check
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      if (data.session) {
+        setAuthed(true);
+      } else {
+        router.replace("/signin");
+      }
       setLoading(false);
-      if (!session) router.push("/signin");
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
+    // Listen for auth changes
+    const { data: subscription } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        setSession(session);
-        if (!session) router.push("/signin");
+        if (!mounted) return;
+        if (session) {
+          setAuthed(true);
+        } else {
+          setAuthed(false);
+          router.replace("/signin");
+        }
       }
     );
 
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.subscription.unsubscribe();
+    };
   }, [router]);
 
-  if (loading) return <div className="p-6 text-center">Loading...</div>;
-  if (!session) return null;
+  if (loading) {
+    return <div className="p-6 text-center">Loading…</div>;
+  }
+
+  if (!authed) return null;
 
   return <>{children}</>;
 }

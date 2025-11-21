@@ -1,7 +1,6 @@
 "use client";
 
-import React from "react";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
@@ -25,17 +24,20 @@ export default function SignInPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState<"signin" | "signup" | null>(null);
   const [checking, setChecking] = useState(true);
-  const errorMsg = search.get("error");
 
   useEffect(() => {
+    // If already logged in, skip the sign-in page.
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) router.replace("/dashboard");
       else setChecking(false);
     });
   }, [router]);
 
-  // IMPORTANT: route back through /auth/callback so the server sets cookies
-  const callbackUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/auth/callback?next=/dashboard`;
+  // Direct callback to /dashboard – Supabase will store the session from URL
+  const callbackUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/dashboard`
+      : "";
 
   const sendOtp = async (kind: "signin" | "signup") => {
     const { error } = await supabase.auth.signInWithOtp({
@@ -61,12 +63,13 @@ export default function SignInPage() {
 
   if (sent) {
     return (
-      <div className="flex min-h-[calc(100vh-64px)] items-center justify-center p-6">
+      <div className="flex min-height-[calc(100vh-64px)] items-center justify-center p-6">
         <div className="text-center">
           <p className="text-lg font-semibold">
-            ✅ Check your email to {sent === "signup" ? "create your account" : "sign in"}.
+            ✅ Check your email to{" "}
+            {sent === "signup" ? "create your account" : "sign in"}.
           </p>
-          <p className="text-sm text-gray-600 mt-2">
+          <p className="mt-2 text-sm text-gray-600">
             Click the link to continue to your dashboard.
           </p>
         </div>
@@ -77,13 +80,9 @@ export default function SignInPage() {
   return (
     <div className="flex min-h-[calc(100vh-64px)] items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-6">Welcome to GigMate</h1>
-
-        {errorMsg && (
-          <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {errorMsg}
-          </div>
-        )}
+        <h1 className="mb-6 text-center text-2xl font-bold">
+          Welcome to GigMate
+        </h1>
 
         <Tabs defaultValue={defaultTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
@@ -128,8 +127,9 @@ export default function SignInPage() {
               <Button variant="outline" onClick={handleGoogle}>
                 Continue with Google
               </Button>
-              <p className="text-xs text-gray-500 mt-2">
-                We use passwordless login. You’ll receive a secure link to finish creating your account.
+              <p className="mt-2 text-xs text-gray-500">
+                We use passwordless login. You’ll receive a secure link to
+                finish creating your account.
               </p>
             </div>
           </TabsContent>
