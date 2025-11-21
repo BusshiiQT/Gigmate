@@ -63,14 +63,12 @@ export default function WeeklyNetChart({
     const buckets = new Map<string, Bucket>();
 
     if (mode === "day") {
-      // 📊 DAILY: always show the current week (Mon–Sun),
-      // even if some days have no entries.
+      // DAILY: always show current week (Mon–Sun), including empty days.
       const weekStart = startOfWeek(now, { weekStartsOn: 1 });
 
-      // Pre-create 7 buckets (Mon–Sun)
       for (let i = 0; i < 7; i++) {
         const d = addDays(weekStart, i);
-        const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+        const key = d.toISOString().slice(0, 10);
         buckets.set(key, {
           key,
           date: d,
@@ -80,7 +78,6 @@ export default function WeeklyNetChart({
         });
       }
 
-      // Add entries into the right day bucket (if within this week)
       for (const e of entries) {
         const started = parseISO(e.started_at);
         const bucketDate = new Date(
@@ -90,7 +87,7 @@ export default function WeeklyNetChart({
         );
         const key = bucketDate.toISOString().slice(0, 10);
         const bucket = buckets.get(key);
-        if (!bucket) continue; // outside current week
+        if (!bucket) continue; // outside this week
 
         const miles = Number(e.miles || 0);
         const mileageDeduction = mileageDeductionCents(
@@ -113,7 +110,6 @@ export default function WeeklyNetChart({
       return Array.from(buckets.values());
     }
 
-    // Helper to add/update a bucket for week or month
     const addToBucket = (bucketDate: Date, entry: EntryRow) => {
       const key = bucketDate.toISOString().slice(0, 10);
       if (!buckets.has(key)) {
@@ -159,7 +155,7 @@ export default function WeeklyNetChart({
     };
 
     if (mode === "week") {
-      // 📊 WEEKLY: last 8 weeks
+      // WEEKLY: last 8 weeks
       const cutoff = subWeeks(now, 7);
       for (const e of entries) {
         const started = parseISO(e.started_at);
@@ -168,7 +164,7 @@ export default function WeeklyNetChart({
         addToBucket(bucketDate, e);
       }
     } else {
-      // 📊 MONTHLY: last 12 months
+      // MONTHLY: last 12 months
       const cutoff = subMonths(now, 11);
       for (const e of entries) {
         const started = parseISO(e.started_at);
@@ -209,10 +205,12 @@ export default function WeeklyNetChart({
           <BarChart
             data={data}
             margin={{ top: 10, right: 16, left: 0, bottom: 4 }}
+            barSize={32}          // ⬅️ fixed bar width
+            barCategoryGap={24}   // ⬅️ spacing between bars
           >
             <XAxis
               dataKey="label"
-              tick={{ fontSize: 11, fill: "#64748b" }} // slate-500
+              tick={{ fontSize: 11, fill: "#64748b" }}
               tickLine={false}
               axisLine={{ stroke: "rgba(148,163,184,0.5)" }}
             />
@@ -237,15 +235,16 @@ export default function WeeklyNetChart({
                 borderRadius: 12,
                 border: "1px solid rgba(148,163,184,0.5)",
                 fontSize: 12,
-                backgroundColor: "#020617", // slate-950
+                backgroundColor: "#020617",
                 color: "#e5e7eb",
               }}
             />
             <Bar
               dataKey="net_cents"
               name="Net"
-              fill="#0ea5e9" // sky-500
+              fill="#0ea5e9"
               radius={[8, 8, 4, 4]}
+              maxBarSize={40}   // ⬅️ safety cap
             />
           </BarChart>
         </ResponsiveContainer>

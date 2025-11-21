@@ -38,9 +38,9 @@ body {
   background: linear-gradient(to right, #e5f2ff, #38bdf8);
 }
 
-/* ---------- DARK MODE CONTRAST FIXES ---------- */
+/* ---------- DARK MODE CONTRAST FIXES (GLOBAL) ---------- */
 
-/* Any text that uses "strong" light-mode colors becomes bright in dark mode */
+/* Make strong text bright in dark mode */
 .dark .text-slate-900,
 .dark .text-gray-900 {
   color: #f9fafb !important;
@@ -54,7 +54,7 @@ body {
   color: #e5e7eb !important;
 }
 
-/* About / landing cards headings that were too faint */
+/* About / landing card headings that were too faint */
 .dark h2,
 .dark h3 {
   color: #f9fafb;
@@ -69,8 +69,40 @@ body {
   color: #e5e7eb;
 }
 
-/* Optional: lighten subtle dividers in dark */
+/* Lighten subtle dividers in dark mode */
 .dark hr,
 .dark .border-slate-200 {
   border-color: rgba(148, 163, 184, 0.45);
+}
+
+/* ---------- DIALOG / MODAL DARK MODE FIX ---------- */
+/* shadcn DialogContent has role="dialog" */
+.dark [role="dialog"] {
+  background-color: #020617; /* slate-950 */
+  color: #f9fafb;
+}
+
+/* Labels & muted text inside dialogs */
+.dark [role="dialog"] label,
+.dark [role="dialog"] .text-slate-900,
+.dark [role="dialog"] .text-slate-800,
+.dark [role="dialog"] .text-slate-700,
+.dark [role="dialog"] .text-gray-700,
+.dark [role="dialog"] .text-slate-600 {
+  color: #e5e7eb !important;
+}
+
+/* Inputs inside dialogs */
+.dark [role="dialog"] input,
+.dark [role="dialog"] textarea,
+.dark [role="dialog"] select {
+  background-color: #020617;
+  color: #f9fafb;
+  border-color: rgba(148, 163, 184, 0.6);
+}
+
+/* Placeholder text in dark-mode inputs */
+.dark [role="dialog"] input::placeholder,
+.dark [role="dialog"] textarea::placeholder {
+  color: #9ca3af;
 }
