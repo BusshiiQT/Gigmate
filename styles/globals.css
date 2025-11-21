@@ -76,23 +76,29 @@ body {
 }
 
 /* ---------- DIALOG / MODAL DARK MODE FIX ---------- */
-/* shadcn <DialogContent> renders an inner div[role="dialog"] */
+/* Radix dialog content used by shadcn: data-radix-dialog-content */
+.dark [data-radix-dialog-content],
 .dark [role="dialog"] {
   background-color: #020617 !important; /* slate-950 */
   color: #f9fafb !important;
 }
 
-/* All text inside dialog should be light */
+/* Make EVERYTHING inside the dialog readable */
+.dark [data-radix-dialog-content] *,
 .dark [role="dialog"] * {
   color: #e5e7eb !important;
 }
 
-/* Labels can be a little brighter */
+/* Labels a bit brighter */
+.dark [data-radix-dialog-content] label,
 .dark [role="dialog"] label {
   color: #f9fafb !important;
 }
 
 /* Inputs / textareas / selects inside dialogs */
+.dark [data-radix-dialog-content] input,
+.dark [data-radix-dialog-content] textarea,
+.dark [data-radix-dialog-content] select,
 .dark [role="dialog"] input,
 .dark [role="dialog"] textarea,
 .dark [role="dialog"] select {
@@ -102,6 +108,8 @@ body {
 }
 
 /* Placeholder text in dark-mode inputs */
+.dark [data-radix-dialog-content] input::placeholder,
+.dark [data-radix-dialog-content] textarea::placeholder,
 .dark [role="dialog"] input::placeholder,
 .dark [role="dialog"] textarea::placeholder {
   color: #9ca3af !important;
