@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -52,27 +51,41 @@ export default function EntriesTable({
 
   return (
     <>
-      {/* Mobile: cards */}
+      {/* Mobile cards */}
       <div className="grid gap-3 sm:hidden">
         {entries.map((e) => (
           <div key={e.id} className="card p-3">
             <div className="flex justify-between">
-              <div className="font-medium">
+              <div className="font-medium text-gray-900 dark:text-white">
                 {new Date(e.started_at).toLocaleDateString()} • {e.platform}
               </div>
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
                 {durationHours(e.started_at, e.ended_at).toFixed(2)}h
               </div>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-              <div>Miles: {Number(e.miles ?? 0).toFixed(2)}</div>
-              <div className="text-right">Gross: {formatCurrency(e.gross_cents)}</div>
-              <div>Tips: {formatCurrency(e.tips_cents)}</div>
-              <div className="text-right">Fuel: {formatCurrency(e.fuel_cost_cents)}</div>
+              <div className="text-gray-700 dark:text-gray-300">
+                Miles: {Number(e.miles ?? 0).toFixed(2)}
+              </div>
+              <div className="text-right text-gray-900 dark:text-white">
+                Gross: {formatCurrency(e.gross_cents)}
+              </div>
+              <div className="text-right text-gray-900 dark:text-white">
+                Tips: {formatCurrency(e.tips_cents)}
+              </div>
+              <div className="text-right text-gray-900 dark:text-white">
+                Fuel: {formatCurrency(e.fuel_cost_cents)}
+              </div>
             </div>
-            {e.notes && <div className="mt-2 text-sm text-gray-700">{e.notes}</div>}
+            {e.notes && (
+              <div className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+                {e.notes}
+              </div>
+            )}
             <div className="mt-3 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setEditing(e)}>Edit</Button>
+              <Button variant="outline" onClick={() => setEditing(e)}>
+                Edit
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => onDelete(e.id)}
@@ -85,10 +98,10 @@ export default function EntriesTable({
         ))}
       </div>
 
-      {/* Desktop: table */}
-      <div className="hidden sm:block overflow-x-auto rounded-lg border bg-white">
+      {/* Desktop table */}
+      <div className="hidden overflow-x-auto rounded-lg border bg-white dark:border-white/10 dark:bg-[#0f141a] sm:block">
         <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600">
+          <thead className="bg-gray-50 text-gray-600 dark:bg-[#0b0f14] dark:text-gray-300">
             <tr>
               <th className="px-3 py-2 text-left">Date</th>
               <th className="px-3 py-2 text-left">Platform</th>
@@ -101,9 +114,9 @@ export default function EntriesTable({
               <th className="px-3 py-2 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="text-gray-900 dark:text-gray-100">
             {entries.map((e) => (
-              <tr key={e.id} className="border-t">
+              <tr key={e.id} className="border-t dark:border-white/10">
                 <td className="px-3 py-2">
                   {new Date(e.started_at).toLocaleDateString()}
                 </td>
@@ -124,7 +137,7 @@ export default function EntriesTable({
                   {formatCurrency(e.fuel_cost_cents)}
                 </td>
                 <td className="px-3 py-2">{e.notes ?? ""}</td>
-                <td className="px-3 py-2 text-right">
+                <td className="px-3 py-2">
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setEditing(e)}>
                       Edit

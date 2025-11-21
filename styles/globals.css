@@ -1,47 +1,76 @@
-@import "tailwindcss/preflight";
-@import "tailwindcss/utilities";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-/* Base text colors */
-html, body { height: 100%; }
-
-/* Light default text */
-body { color: #0b1220; }
-
-/* Dark mode defaults */
-:root { --app-bg: #ffffff; }
-.bg-app { background: var(--app-bg); }
-
-:root.dark {
-  --app-bg: #0b0f14;
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
 }
 
-/* Ensure readable text in dark */
-.dark body { color: #e5e7eb; } /* gray-200 */
+.dark body {
+  @apply bg-slate-950 text-slate-50;
+}
 
-/* Reusable card style (light + dark) */
+/* Generic card + pill used across dashboard & landing */
 .card {
-  @apply rounded-2xl border bg-white p-6;
-}
-.dark .card {
-  @apply border-white/10 bg-[#0f141a];
-}
-
-/* Buttons: slightly larger touch targets on mobile */
-button, .btn { @apply min-h-[40px]; }
-
-/* Tables */
-table th, table td { @apply align-middle; }
-
-/* Generic card style fallback */
-.card {
-  border-radius: 1.5rem;
-  padding: 1rem;
-  background-color: rgba(248, 250, 252, 0.9); /* slate-50-ish */
-  border: 1px solid rgba(148, 163, 184, 0.4);
+  @apply rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5;
 }
 
 .dark .card {
-  background-color: #020617; /* slate-950 */
-  border-color: #334155;     /* slate-700 */
+  @apply border-slate-700 bg-slate-900;
 }
 
+.pill {
+  @apply inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700;
+}
+
+.dark .pill {
+  @apply bg-slate-800 text-slate-100;
+}
+
+/* Landing hero gradient title */
+.gradient-title {
+  background: linear-gradient(to right, #0f172a, #0369a1);
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.dark .gradient-title {
+  background: linear-gradient(to right, #e5f2ff, #38bdf8);
+}
+
+/* ---------- DARK MODE CONTRAST FIXES ---------- */
+
+/* Any text that uses "strong" light-mode colors becomes bright in dark mode */
+.dark .text-slate-900,
+.dark .text-gray-900 {
+  color: #f9fafb !important;
+}
+
+.dark .text-slate-800,
+.dark .text-gray-800,
+.dark .text-slate-700,
+.dark .text-gray-700,
+.dark .text-slate-600 {
+  color: #e5e7eb !important;
+}
+
+/* About / landing cards headings that were too faint */
+.dark h2,
+.dark h3 {
+  color: #f9fafb;
+}
+
+/* Table readability in dark mode */
+.dark table thead tr th {
+  color: #e5e7eb;
+}
+
+.dark table tbody tr td {
+  color: #e5e7eb;
+}
+
+/* Optional: lighten subtle dividers in dark */
+.dark hr,
+.dark .border-slate-200 {
+  border-color: rgba(148, 163, 184, 0.45);
+}
