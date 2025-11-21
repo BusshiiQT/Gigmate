@@ -114,3 +114,11 @@ body {
 .dark [role="dialog"] textarea::placeholder {
   color: #9ca3af !important;
 }
+
+/* Final safety net:
+   Any shadcn / Radix panel using bg-background
+   should be dark when the app is in dark mode. */
+.dark .bg-background {
+  background-color: #020617 !important; /* slate-950 */
+  color: #f9fafb !important;
+}
