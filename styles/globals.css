@@ -76,33 +76,33 @@ body {
 }
 
 /* ---------- DIALOG / MODAL DARK MODE FIX ---------- */
-/* shadcn DialogContent has role="dialog" */
+/* shadcn <DialogContent> renders an inner div[role="dialog"] */
 .dark [role="dialog"] {
-  background-color: #020617; /* slate-950 */
-  color: #f9fafb;
+  background-color: #020617 !important; /* slate-950 */
+  color: #f9fafb !important;
 }
 
-/* Labels & muted text inside dialogs */
-.dark [role="dialog"] label,
-.dark [role="dialog"] .text-slate-900,
-.dark [role="dialog"] .text-slate-800,
-.dark [role="dialog"] .text-slate-700,
-.dark [role="dialog"] .text-gray-700,
-.dark [role="dialog"] .text-slate-600 {
+/* All text inside dialog should be light */
+.dark [role="dialog"] * {
   color: #e5e7eb !important;
 }
 
-/* Inputs inside dialogs */
+/* Labels can be a little brighter */
+.dark [role="dialog"] label {
+  color: #f9fafb !important;
+}
+
+/* Inputs / textareas / selects inside dialogs */
 .dark [role="dialog"] input,
 .dark [role="dialog"] textarea,
 .dark [role="dialog"] select {
-  background-color: #020617;
-  color: #f9fafb;
-  border-color: rgba(148, 163, 184, 0.6);
+  background-color: #020617 !important;
+  color: #f9fafb !important;
+  border-color: rgba(148, 163, 184, 0.8) !important;
 }
 
 /* Placeholder text in dark-mode inputs */
 .dark [role="dialog"] input::placeholder,
 .dark [role="dialog"] textarea::placeholder {
-  color: #9ca3af;
+  color: #9ca3af !important;
 }
