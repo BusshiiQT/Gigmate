@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { addDays, startOfWeek } from "date-fns";
+import PatternInsights from "@/components/PatternInsights";
 
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabaseClient";
@@ -152,9 +153,7 @@ function DashboardClient() {
         try {
           const parsed = JSON.parse(text);
           msg = parsed?.error || msg;
-        } catch {
-          // non-JSON
-        }
+        } catch {}
         throw new Error(msg);
       }
 
@@ -179,8 +178,6 @@ function DashboardClient() {
 
   const handleScopeChange = (next: Scope) => {
     setScope(next);
-    // When looking at just this week, show daily buckets.
-    // For "all entries", show weekly by default.
     setChartMode(next === "week" ? "day" : "week");
   };
 
@@ -190,7 +187,7 @@ function DashboardClient() {
         <DashboardSkeleton />
       ) : (
         <>
-          {/* Header row */}
+          {/* Header */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
@@ -226,13 +223,13 @@ function DashboardClient() {
             </div>
           </div>
 
-          {/* Empty state */}
+          {/* Empty */}
           {entries.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed bg-slate-100/90 p-10 text-center text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
               <div className="mb-3 text-4xl">🚗</div>
               <p className="font-medium">No entries yet</p>
               <p className="mt-1 text-sm">
-                Start by adding your first shift or batch. We&apos;ll crunch the
+                Start by adding your first shift or batch. We'll crunch the
                 numbers for you.
               </p>
               <Link href="/entries/new" className="mt-4">
@@ -241,7 +238,7 @@ function DashboardClient() {
             </div>
           ) : (
             <>
-              {/* Summary stats */}
+              {/* Stats summary */}
               {settings && (
                 <StatsCards
                   gross_cents={stats.gross}
@@ -251,7 +248,7 @@ function DashboardClient() {
                 />
               )}
 
-              {/* Chart + controls */}
+              {/* Chart */}
               {settings && (
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -306,6 +303,9 @@ function DashboardClient() {
                 settings={settings}
                 scope={scope}
               />
+
+              {/* NEW: Pattern Insights */}
+              <PatternInsights entries={entries} settings={settings} />
 
               {/* Table */}
               <EntriesTable entries={entries} onChanged={fetchAll} />
