@@ -2,65 +2,73 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button";
 
 export default function NewScreenshotPage() {
-  const router = useRouter();
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0] || null;
+    setFile(f);
+  };
+
+  const handleUpload = async () => {
     if (!file) {
-      toast({ title: "Upload failed", description: "Please pick an image." });
+      toast({ title: "No file selected", description: "Choose a screenshot first." });
       return;
     }
 
+    setUploading(true);
     try {
-      setUploading(true);
-
-      // Make sure we have a logged-in user
+      // 1) Get current user (needed for user_id and path)
       const {
         data: { user },
         error: userErr,
       } = await supabase.auth.getUser();
 
-      if (userErr) throw userErr;
-      if (!user) {
+      if (userErr || !user) {
         throw new Error("You must be signed in to upload screenshots.");
       }
 
-      // 1) Upload to the "screenshots" bucket
-      const ext = file.name.split(".").pop() ?? "png";
-      const filePath = `${user.id}/${Date.now()}.${ext}`;
+      const ext = file.name.split(".").pop() || "png";
+      const base = file.name.replace(/\.[^/.]+$/, "");
+      const path = `${user.id}/${Date.now()}-${base}.${ext}`;
 
-      const { error: storageErr } = await supabase.storage
-        .from("screenshots")
-        .upload(filePath, file, {
+      // 2) Upload the file to storage
+      const { error: uploadErr } = await supabase.storage
+        .from("gig-screenshots")
+        .upload(path, file, {
           cacheControl: "3600",
           upsert: false,
         });
 
-      if (storageErr) throw storageErr;
+      if (uploadErr) {
+        throw uploadErr;
+      }
 
-      // 2) Insert DB row WITHOUT user_id (default = auth.uid())
-      const { error: insertErr } = await supabase.from("screenshots").insert({
-        bucket: "screenshots",
-        path: filePath,
-        original_name: file.name,
+      // 3) Insert DB row – THIS MUST INCLUDE user_id
+      const { error: dbErr } = await supabase
+        .from("screenshot_uploads")
+        .insert({
+          user_id: user.id, // <– RLS will check this against auth.uid()
+          path,
+        });
+
+      if (dbErr) {
+        throw dbErr;
+      }
+
+      toast({
+        title: "Upload complete",
+        description: "Your screenshot was uploaded successfully.",
       });
-
-      if (insertErr) throw insertErr;
-
-      toast({ title: "Screenshot uploaded" });
-      router.push("/screenshots");
+      setFile(null);
     } catch (err: any) {
-      console.error("Upload error", err);
+      console.error(err);
       toast({
         title: "Upload failed",
         description: err.message ?? "Something went wrong.",
@@ -71,49 +79,27 @@ export default function NewScreenshotPage() {
   };
 
   return (
-    <main className="mx-auto max-w-lg p-4 sm:p-6 md:p-8">
-      <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-        Import from screenshot (beta)
+    <main className="mx-auto flex max-w-xl flex-col gap-4 p-4 pb-8 sm:p-6 md:p-8">
+      <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
+        Upload screenshot
       </h1>
-      <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-        Upload a gig earnings screenshot. In a future update we&apos;ll auto-parse
-        the totals into entries.
+      <p className="text-sm text-slate-600 dark:text-slate-300">
+        Upload a screenshot of your gig earnings (Uber, DoorDash, etc.). In a future version
+        we’ll auto-parse this into entries.
       </p>
 
-      <form
-        onSubmit={onSubmit}
-        className="mt-6 space-y-4 rounded-2xl border bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-      >
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-800 dark:text-slate-100">
-            Screenshot file
-          </label>
-          <Input
-            type="file"
-            accept="image/*"
-            onChange={(e) => {
-              const f = e.target.files?.[0] ?? null;
-              setFile(f);
-            }}
-          />
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            PNG or JPG. Max 5MB.
-          </p>
-        </div>
+      <input
+        type="file"
+        accept="image/*"
+        onChange={handleFileChange}
+        className="block w-full text-sm text-slate-700 file:mr-4 file:rounded-md file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800 dark:text-slate-100"
+      />
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => router.push("/screenshots")}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={uploading || !file}>
-            {uploading ? "Uploading…" : "Upload"}
-          </Button>
-        </div>
-      </form>
+      <div className="flex gap-2">
+        <Button onClick={handleUpload} disabled={!file || uploading}>
+          {uploading ? "Uploading…" : "Upload"}
+        </Button>
+      </div>
     </main>
   );
 }
