@@ -1,105 +1,92 @@
+// app/screenshots/new/page.tsx
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import Link from "next/link";
-
-type UploadState = "idle" | "uploading";
+import { useToast } from "@/components/ui/use-toast";
 
 export default function NewScreenshotPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
-  const [note, setNote] = useState("");
-  const [state, setState] = useState<UploadState>("idle");
+  const [uploading, setUploading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file) {
-      toast({ title: "No file selected", description: "Choose a screenshot first." });
-      return;
-    }
-
-    setState("uploading");
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setState("idle");
-      toast({
-        title: "Not signed in",
-        description: "Please sign in to upload screenshots.",
-      });
-      router.replace("/signin");
+      toast({ title: "Upload failed", description: "Please pick an image." });
       return;
     }
 
     try {
-      const ext = file.name.split(".").pop() || "png";
-      const path = `${user.id}/${Date.now()}.${ext}`;
+      setUploading(true);
 
-      // 1) Upload to storage
-      const { error: storageError } = await supabase.storage
-        .from("screenshots")
-        .upload(path, file);
+      // Make sure we have a logged-in user
+      const {
+        data: { user },
+        error: userErr,
+      } = await supabase.auth.getUser();
 
-      if (storageError) {
-        throw new Error(storageError.message);
+      if (userErr) throw userErr;
+      if (!user) {
+        throw new Error("You must be signed in to upload screenshots.");
       }
 
-      // 2) Insert metadata row
-      const { error: insertError } = await supabase.from("screenshots").insert({
-        user_id: user.id,
-        path,
-        note: note.trim() || null,
+      // 1) Upload to the "screenshots" bucket
+      const ext = file.name.split(".").pop() ?? "png";
+      const filePath = `${user.id}/${Date.now()}.${ext}`;
+
+      const { error: storageErr } = await supabase.storage
+        .from("screenshots")
+        .upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+        });
+
+      if (storageErr) throw storageErr;
+
+      // 2) Insert DB row WITHOUT user_id (default = auth.uid())
+      const { error: insertErr } = await supabase.from("screenshots").insert({
+        bucket: "screenshots",
+        path: filePath,
+        original_name: file.name,
       });
 
-      if (insertError) {
-        throw new Error(insertError.message);
-      }
+      if (insertErr) throw insertErr;
 
       toast({ title: "Screenshot uploaded" });
       router.push("/screenshots");
     } catch (err: any) {
-      console.error(err);
+      console.error("Upload error", err);
       toast({
         title: "Upload failed",
         description: err.message ?? "Something went wrong.",
       });
-      setState("idle");
+    } finally {
+      setUploading(false);
     }
   };
 
   return (
-    <main className="mx-auto flex max-w-xl flex-col gap-4 p-4 pb-8 sm:p-6 md:p-8">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-            Upload screenshot
-          </h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            Add a screenshot of your earnings. Later, we&apos;ll use AI to auto-fill entries.
-          </p>
-        </div>
-        <Link href="/screenshots" className="text-sm text-slate-500 hover:underline">
-          Back to screenshots
-        </Link>
-      </div>
+    <main className="mx-auto max-w-lg p-4 sm:p-6 md:p-8">
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+        Import from screenshot (beta)
+      </h1>
+      <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+        Upload a gig earnings screenshot. In a future update we&apos;ll auto-parse
+        the totals into entries.
+      </p>
 
       <form
-        onSubmit={handleSubmit}
-        className="space-y-4 rounded-3xl border bg-slate-100/90 p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5"
+        onSubmit={onSubmit}
+        className="mt-6 space-y-4 rounded-2xl border bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
       >
         <div className="space-y-2">
           <label className="block text-sm font-medium text-slate-800 dark:text-slate-100">
-            Screenshot
+            Screenshot file
           </label>
           <Input
             type="file"
@@ -110,21 +97,8 @@ export default function NewScreenshotPage() {
             }}
           />
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Upload a screenshot of your Uber, DoorDash, Instacart, etc. earnings page.
+            PNG or JPG. Max 5MB.
           </p>
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-800 dark:text-slate-100">
-            Note (optional)
-          </label>
-          <textarea
-            rows={3}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="E.g. Friday dinner rush, mostly DoorDash downtown."
-          />
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
@@ -135,8 +109,8 @@ export default function NewScreenshotPage() {
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={state === "uploading"}>
-            {state === "uploading" ? "Uploading…" : "Upload screenshot"}
+          <Button type="submit" disabled={uploading || !file}>
+            {uploading ? "Uploading…" : "Upload"}
           </Button>
         </div>
       </form>
