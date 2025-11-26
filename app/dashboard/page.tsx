@@ -205,6 +205,9 @@ function DashboardClient() {
               >
                 {exporting ? "Exporting..." : "Export CSV"}
               </Button>
+              <Link href="/screenshots">
+                <Button variant="outline">Screenshots</Button>
+              </Link>
               <Button
                 variant={scope === "week" ? "default" : "outline"}
                 onClick={() => handleScopeChange("week")}
@@ -304,7 +307,7 @@ function DashboardClient() {
                 scope={scope}
               />
 
-              {/* NEW: Pattern Insights */}
+              {/* Pattern Insights */}
               <PatternInsights entries={entries} settings={settings} />
 
               {/* Table */}
