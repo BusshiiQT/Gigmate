@@ -27,7 +27,6 @@ export default function NewScreenshotPage() {
 
     setUploading(true);
     try {
-      // 1) Get current user
       const {
         data: { user },
         error: userErr,
@@ -42,34 +41,32 @@ export default function NewScreenshotPage() {
       const base = file.name.replace(/\.[^/.]+$/, "");
       const path = `${user.id}/${Date.now()}-${base}.${ext}`;
 
-      // 2) Upload to the EXISTING "screenshots" bucket
+      console.log("Uploading screenshot to bucket 'screenshots' at path:", path);
+
+      // ✅ Only upload to storage. No DB insert for now.
       const { error: uploadErr } = await supabase.storage
-        .from("screenshots") // 👈 must match bucket name in Supabase
+        .from("screenshots") // bucket name you confirmed exists
         .upload(path, file, {
           cacheControl: "3600",
           upsert: false,
         });
 
-      if (uploadErr) throw uploadErr;
-
-      // 3) Insert DB row into screenshot_uploads with user_id for RLS
-      const { error: dbErr } = await supabase.from("screenshot_uploads").insert({
-        user_id: user.id,
-        path,
-      });
-
-      if (dbErr) throw dbErr;
+      if (uploadErr) {
+        console.error("Storage upload error:", uploadErr);
+        throw uploadErr;
+      }
 
       toast({
         title: "Upload complete",
-        description: "Your screenshot was uploaded successfully.",
+        description:
+          "Your screenshot was uploaded. Parsing into entries is coming in a future update.",
       });
       setFile(null);
     } catch (err: any) {
-      console.error(err);
+      console.error("Upload failed:", err);
       toast({
         title: "Upload failed",
-        description: err.message ?? "Something went wrong.",
+        description: err?.message ?? "Something went wrong.",
       });
     } finally {
       setUploading(false);
@@ -79,11 +76,11 @@ export default function NewScreenshotPage() {
   return (
     <main className="mx-auto flex max-w-xl flex-col gap-4 p-4 pb-8 sm:p-6 md:p-8">
       <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50">
-        Upload screenshot
+        Upload screenshot (beta)
       </h1>
       <p className="text-sm text-slate-600 dark:text-slate-300">
         Upload a screenshot of your gig earnings. In a future version we&apos;ll
-        auto-parse this into entries.
+        auto-parse this into entries and show a gallery.
       </p>
 
       <input
