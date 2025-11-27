@@ -3,7 +3,10 @@
 import * as React from "react";
 import { supabase } from "@/lib/supabaseClient";
 import AuthGate from "@/components/AuthGate";
-import EntryForm, { EntryFormInitial } from "@/components/EntryForm";
+import EntryForm, {
+  EntryFormInitial,
+  localDateTimeInputValue,
+} from "@/components/EntryForm";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -17,7 +20,9 @@ export default function NewEntryPage() {
 
 function NewEntryClient() {
   const { toast } = useToast();
-  const [initial, setInitial] = React.useState<EntryFormInitial | undefined>(undefined);
+  const [initial, setInitial] = React.useState<EntryFormInitial | undefined>(
+    undefined
+  );
   const [busy, setBusy] = React.useState(false);
 
   const duplicateLast = async () => {
@@ -39,19 +44,30 @@ function NewEntryClient() {
         .limit(1);
 
       if (error) throw error;
-      const last = data?.[0];
+      const last: any = data?.[0];
       if (!last) {
         toast({ title: "No previous entry to duplicate" });
         return;
       }
 
-      // Prefill with last entry's values; reset times to 'now'
-      const nowLocal = new Date().toISOString().slice(0, 16);
+      // Prefill with last entry's values; reset times to local "now"
+      const nowLocal = localDateTimeInputValue();
+
+      const safePlatform =
+        last.platform === "Uber" ||
+        last.platform === "Lyft" ||
+        last.platform === "DoorDash" ||
+        last.platform === "Instacart" ||
+        last.platform === "AmazonFlex" ||
+        last.platform === "Other"
+          ? last.platform
+          : "Uber";
+
       setInitial({
-        platform: last.platform,
-        gross: (last.gross_cents / 100).toFixed(2),
-        tips: (last.tips_cents / 100).toFixed(2),
-        fuel_cost: (last.fuel_cost_cents / 100).toFixed(2),
+        platform: safePlatform,
+        gross: ((last.gross_cents ?? 0) / 100).toFixed(2),
+        tips: ((last.tips_cents ?? 0) / 100).toFixed(2),
+        fuel_cost: ((last.fuel_cost_cents ?? 0) / 100).toFixed(2),
         miles: Number(last.miles ?? 0).toFixed(2),
         notes: last.notes ?? "",
         started_at: nowLocal,
@@ -60,7 +76,10 @@ function NewEntryClient() {
 
       toast({ title: "Duplicated last entry" });
     } catch (e: any) {
-      toast({ title: "Duplicate failed", description: e?.message ?? "Unknown error" });
+      toast({
+        title: "Duplicate failed",
+        description: e?.message ?? "Unknown error",
+      });
     } finally {
       setBusy(false);
     }
@@ -68,7 +87,7 @@ function NewEntryClient() {
 
   return (
     <main className="mx-auto max-w-3xl space-y-4 p-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-bold">New Entry</h1>
         <Button variant="outline" onClick={duplicateLast} disabled={busy}>
           {busy ? "Loading..." : "Duplicate last entry"}

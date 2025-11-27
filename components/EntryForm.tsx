@@ -10,7 +10,14 @@ import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/components/ui/use-toast";
 
 const schema = z.object({
-  platform: z.enum(["Uber", "Lyft", "DoorDash", "Instacart", "AmazonFlex", "Other"]),
+  platform: z.enum([
+    "Uber",
+    "Lyft",
+    "DoorDash",
+    "Instacart",
+    "AmazonFlex",
+    "Other",
+  ]),
   started_at: z.string().min(1),
   ended_at: z.string().min(1),
   gross: z.string().min(1),
@@ -34,7 +41,7 @@ export type EntryFormInitial = Partial<{
 }>;
 
 // helper to get local datetime string for <input type="datetime-local">
-function localDateTimeInputValue(d = new Date()) {
+export function localDateTimeInputValue(d = new Date()) {
   const pad = (n: number) => String(n).padStart(2, "0");
   const year = d.getFullYear();
   const month = pad(d.getMonth() + 1);
@@ -114,9 +121,11 @@ export default function EntryForm({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {/* Platform (native select) */}
         <div>
-          <label className="block text-sm text-gray-600">Platform</label>
+          <label className="block text-sm text-gray-600 dark:text-gray-300">
+            Platform
+          </label>
           <select
-            className="mt-1 w-full rounded-md border px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-white dark:bg-slate-900 dark:border-slate-700"
             defaultValue={initialValues?.platform ?? "Uber"}
             {...register("platform")}
           >
@@ -130,43 +139,81 @@ export default function EntryForm({
         </div>
 
         <div>
-          <label className="block text-sm text-gray-600">Gross ($)</label>
-          <Input type="number" step="0.01" placeholder="0.00" {...register("gross")} />
+          <label className="block text-sm text-gray-600 dark:text-gray-300">
+            Gross ($)
+          </label>
+          <Input
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            {...register("gross")}
+          />
         </div>
 
         <div>
-          <label className="block text-sm text-gray-600">Tips ($)</label>
-          <Input type="number" step="0.01" placeholder="0.00" {...register("tips")} />
+          <label className="block text-sm text-gray-600 dark:text-gray-300">
+            Tips ($)
+          </label>
+          <Input
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            {...register("tips")}
+          />
         </div>
 
         <div>
-          <label className="block text-sm text-gray-600">Fuel cost ($)</label>
-          <Input type="number" step="0.01" placeholder="0.00" {...register("fuel_cost")} />
+          <label className="block text-sm text-gray-600 dark:text-gray-300">
+            Fuel cost ($)
+          </label>
+          <Input
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            {...register("fuel_cost")}
+          />
         </div>
 
         <div>
-          <label className="block text-sm text-gray-600">Miles</label>
-          <Input type="number" step="0.01" placeholder="0.00" {...register("miles")} />
+          <label className="block text-sm text-gray-600 dark:text-gray-300">
+            Miles
+          </label>
+          <Input
+            type="number"
+            step="0.01"
+            placeholder="0.00"
+            {...register("miles")}
+          />
         </div>
 
         <div>
-          <label className="block text-sm text-gray-600">Start</label>
+          <label className="block text-sm text-gray-600 dark:text-gray-300">
+            Start
+          </label>
           <Input type="datetime-local" {...register("started_at")} />
         </div>
 
         <div>
-          <label className="block text-sm text-gray-600">End</label>
+          <label className="block text-sm text-gray-600 dark:text-gray-300">
+            End
+          </label>
           <Input type="datetime-local" {...register("ended_at")} />
         </div>
 
         <div className="sm:col-span-2">
-          <label className="block text-sm text-gray-600">Notes</label>
-          <Input type="text" placeholder="Optional notes" {...register("notes")} />
+          <label className="block text-sm text-gray-600 dark:text-gray-300">
+            Notes
+          </label>
+          <Input
+            type="text"
+            placeholder="Optional notes"
+            {...register("notes")}
+          />
         </div>
       </div>
 
       {formState.errors && Object.keys(formState.errors).length > 0 && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/60 dark:bg-red-950 dark:text-red-100">
           Please check the fields above.
         </div>
       )}

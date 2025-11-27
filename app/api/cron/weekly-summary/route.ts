@@ -142,11 +142,6 @@ export async function GET(req: NextRequest) {
     userIds.map(async (userId) => {
       const { thisWeek, previousWeek } = entriesByUser.get(userId)!;
 
-      // If user has no entries this week, skip sending email
-      if (thisWeek.length === 0) {
-        return { userId, skipped: true, reason: "No entries this week." };
-      }
-
       // Fetch user settings
       const { data: settingsData, error: settingsError } = await supabaseAdmin
         .from("settings")
@@ -176,6 +171,8 @@ export async function GET(req: NextRequest) {
           userId,
           skipped: true,
           reason: "No email or auth error.",
+          thisWeekEntryCount: thisWeek.length,
+          previousWeekEntryCount: previousWeek.length,
         };
       }
 
@@ -193,15 +190,6 @@ export async function GET(req: NextRequest) {
           ? calculateWeeklyStats(previousWeek, settings)
           : null;
 
-      // If there is basically nothing (no gross), skip
-      if (thisWeekStats.totalGrossCents === 0) {
-        return {
-          userId,
-          skipped: true,
-          reason: "Zero gross this week.",
-        };
-      }
-
       const { subject, html, text } = buildWeeklySummaryEmail({
         userFirstName: firstName,
         weekLabel,
@@ -218,10 +206,21 @@ export async function GET(req: NextRequest) {
           text,
         });
 
-        return { userId, skipped: false };
+        return {
+          userId,
+          skipped: false,
+          thisWeekEntryCount: thisWeek.length,
+          previousWeekEntryCount: previousWeek.length,
+        };
       } catch (sendError) {
         console.error(`Error sending weekly summary to ${userId}:`, sendError);
-        return { userId, skipped: true, reason: "Resend error." };
+        return {
+          userId,
+          skipped: true,
+          reason: "Resend error.",
+          thisWeekEntryCount: thisWeek.length,
+          previousWeekEntryCount: previousWeek.length,
+        };
       }
     })
   );
