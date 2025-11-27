@@ -18,19 +18,23 @@ export default function NewScreenshotPage() {
 
   const handleUpload = async () => {
     if (!file) {
-      toast({ title: "No file selected", description: "Choose a screenshot first." });
+      toast({
+        title: "No file selected",
+        description: "Choose a screenshot first.",
+      });
       return;
     }
 
     setUploading(true);
     try {
-      // 1) Get current user (needed for user_id and path)
+      // 1) Get current user
       const {
         data: { user },
         error: userErr,
       } = await supabase.auth.getUser();
 
-      if (userErr || !user) {
+      if (userErr) throw userErr;
+      if (!user) {
         throw new Error("You must be signed in to upload screenshots.");
       }
 
@@ -38,29 +42,23 @@ export default function NewScreenshotPage() {
       const base = file.name.replace(/\.[^/.]+$/, "");
       const path = `${user.id}/${Date.now()}-${base}.${ext}`;
 
-      // 2) Upload the file to storage
+      // 2) Upload to the EXISTING "screenshots" bucket
       const { error: uploadErr } = await supabase.storage
-        .from("gig-screenshots")
+        .from("screenshots") // 👈 must match bucket name in Supabase
         .upload(path, file, {
           cacheControl: "3600",
           upsert: false,
         });
 
-      if (uploadErr) {
-        throw uploadErr;
-      }
+      if (uploadErr) throw uploadErr;
 
-      // 3) Insert DB row – THIS MUST INCLUDE user_id
-      const { error: dbErr } = await supabase
-        .from("screenshot_uploads")
-        .insert({
-          user_id: user.id, // <– RLS will check this against auth.uid()
-          path,
-        });
+      // 3) Insert DB row into screenshot_uploads with user_id for RLS
+      const { error: dbErr } = await supabase.from("screenshot_uploads").insert({
+        user_id: user.id,
+        path,
+      });
 
-      if (dbErr) {
-        throw dbErr;
-      }
+      if (dbErr) throw dbErr;
 
       toast({
         title: "Upload complete",
@@ -84,8 +82,8 @@ export default function NewScreenshotPage() {
         Upload screenshot
       </h1>
       <p className="text-sm text-slate-600 dark:text-slate-300">
-        Upload a screenshot of your gig earnings (Uber, DoorDash, etc.). In a future version
-        we’ll auto-parse this into entries.
+        Upload a screenshot of your gig earnings. In a future version we&apos;ll
+        auto-parse this into entries.
       </p>
 
       <input
