@@ -2,7 +2,8 @@
   "crons": [
     {
       "path": "/api/cron/weekly-summary",
-      "schedule": "0 13 * * MON"
+      "schedule": "0 13 * * 1"
+
     }
   ]
 }
