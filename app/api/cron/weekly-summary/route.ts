@@ -14,7 +14,8 @@ import {
   type EntryRow,
   type SettingsRow,
   buildWeeklySummaryEmail,
-} from "@/lib/weeklySummary";
+} from "../../../../lib/weeklySummary";
+
 
 export const runtime = "nodejs";
 
