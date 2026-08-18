@@ -26,11 +26,32 @@ export default function SignInPage() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
+    const redirectIfAuthenticated = (session: unknown) => {
+      if (session) router.replace("/dashboard");
+    };
+
     // If already logged in, skip the sign-in page.
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) router.replace("/dashboard");
-      else setChecking(false);
+      if (!mounted) return;
+      redirectIfAuthenticated(session);
+      if (!session) setChecking(false);
     });
+
+    // Supabase propagates session changes through its shared browser storage,
+    // so the tab waiting here can react after the email link opens elsewhere.
+    const { data: subscription } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (!mounted) return;
+        redirectIfAuthenticated(session);
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription.subscription.unsubscribe();
+    };
   }, [router]);
 
   // Direct callback to /dashboard – Supabase will store the session from URL
