@@ -1,38 +1,57 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server.js";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
-import {
-  endOfDay,
-  startOfDay,
-  subDays,
-  format,
-  isAfter,
-  isBefore,
-} from "date-fns";
-import {
-  calculateWeeklyStats,
-  type EntryRow,
-  type SettingsRow,
-  buildWeeklySummaryEmail,
-} from "../../../../lib/weeklySummary";
+// Node executes the cron helper tests directly and requires runtime extensions.
+// @ts-expect-error TypeScript does not allow .ts extensions without allowImportingTsExtensions.
+import { getCompletedUtcWeekRange, isInHalfOpenRange } from "../../../../lib/datetime.ts";
+// @ts-expect-error TypeScript does not allow .ts extensions without allowImportingTsExtensions.
+import { buildWeeklySummaryEmail, calculateWeeklyStats, type EntryRow, type SettingsRow } from "../../../../lib/weeklySummary.ts";
 
 
 export const runtime = "nodejs";
 
+type CronAuthResult =
+  | { authorized: true }
+  | { authorized: false; status: 401 | 500; error: string };
+
+export function getCronAuthResult(
+  authorizationHeader: string | null,
+  cronSecret: string | undefined
+): CronAuthResult {
+  if (!cronSecret) {
+    return {
+      authorized: false,
+      status: 500,
+      error: "Cron authentication is not configured.",
+    };
+  }
+
+  if (authorizationHeader !== `Bearer ${cronSecret}`) {
+    return { authorized: false, status: 401, error: "Unauthorized" };
+  }
+
+  return { authorized: true };
+}
+
+function formatUtcPeriodBoundary(value: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(value);
+}
+
 // GET /api/cron/weekly-summary
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    // Allow either Authorization: Bearer <secret> or ?secret=...
-    const authHeader = req.headers.get("authorization");
-    const headerToken = authHeader?.startsWith("Bearer ")
-      ? authHeader.slice("Bearer ".length)
-      : null;
-    const queryToken = req.nextUrl.searchParams.get("secret");
-
-    if (headerToken !== cronSecret && queryToken !== cronSecret) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  const authResult = getCronAuthResult(
+    req.headers.get("authorization"),
+    process.env.CRON_SECRET
+  );
+  if (!authResult.authorized) {
+    return NextResponse.json(
+      { error: authResult.error },
+      { status: authResult.status }
+    );
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -60,26 +79,18 @@ export async function GET(req: NextRequest) {
   const resend = new Resend(resendApiKey);
 
   const now = new Date();
-
-  // This week: last 7 days (inclusive)
-  const endOfThisRange = endOfDay(now);
-  const startOfThisRange = startOfDay(subDays(endOfThisRange, 6));
-
-  // Previous week: 7 days before that
-  const endOfPreviousRange = endOfDay(subDays(startOfThisRange, 1));
-  const startOfPreviousRange = startOfDay(subDays(endOfPreviousRange, 6));
-
-  const weekLabel = `${format(startOfThisRange, "MMM d")} – ${format(
-    endOfThisRange,
-    "MMM d"
-  )}`;
+  const thisWeekRange = getCompletedUtcWeekRange(now);
+  const previousWeekRange = getCompletedUtcWeekRange(now, -1);
+  const weekLabel = `${formatUtcPeriodBoundary(
+    thisWeekRange.startInclusive
+  )} – ${formatUtcPeriodBoundary(thisWeekRange.endExclusive)} (UTC)`;
 
   // Fetch all entries in the last 14 days (previous week + this week)
   const { data: entriesData, error: entriesError } = await supabaseAdmin
     .from("entries")
     .select("*")
-    .gte("started_at", startOfPreviousRange.toISOString())
-    .lte("started_at", endOfThisRange.toISOString());
+    .gte("started_at", previousWeekRange.startInclusive.toISOString())
+    .lt("started_at", thisWeekRange.endExclusive.toISOString());
 
   if (entriesError) {
     console.error("Error fetching entries for weekly summary:", entriesError);
@@ -106,17 +117,8 @@ export async function GET(req: NextRequest) {
     const startedAt = new Date(entry.started_at);
     if (isNaN(startedAt.getTime())) continue;
 
-    const isInThisWeek =
-      (isAfter(startedAt, startOfThisRange) ||
-        startedAt.getTime() === startOfThisRange.getTime()) &&
-      (isBefore(startedAt, endOfThisRange) ||
-        startedAt.getTime() === endOfThisRange.getTime());
-
-    const isInPreviousWeek =
-      (isAfter(startedAt, startOfPreviousRange) ||
-        startedAt.getTime() === startOfPreviousRange.getTime()) &&
-      (isBefore(startedAt, endOfPreviousRange) ||
-        startedAt.getTime() === endOfPreviousRange.getTime());
+    const isInThisWeek = isInHalfOpenRange(startedAt, thisWeekRange);
+    const isInPreviousWeek = isInHalfOpenRange(startedAt, previousWeekRange);
 
     if (!isInThisWeek && !isInPreviousWeek) continue;
 

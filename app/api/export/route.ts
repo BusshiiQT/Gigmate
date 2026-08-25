@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  buildEntryExportCsv,
+  type ExportEntry,
+  type ExportSettings,
+} from "@/lib/csv";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-// Helper: cents → dollars
-function centsToDollars(cents: number | null | undefined) {
-  const n = typeof cents === "number" ? cents : 0;
-  return (n / 100).toFixed(2);
-}
-
 export async function GET(req: Request) {
   // Read Bearer token from the Authorization header
-  const auth = req.headers.get("authorization") || req.headers.get("Authorization");
+  const auth = req.headers.get("authorization");
   const token = auth?.startsWith("Bearer ") ? auth.slice("Bearer ".length) : null;
 
   if (!token) {
@@ -21,17 +20,22 @@ export async function GET(req: Request) {
 
   // Create a plain supabase-js client and attach the token as a global header.
   // RLS will evaluate using this JWT.
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-    {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return NextResponse.json(
+      { error: "Export service is not configured" },
+      { status: 500 }
+    );
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`,
       },
-    }
-  );
+    },
+  });
 
   // Optional: verify token can fetch user (nice error if expired)
   const {
@@ -43,58 +47,47 @@ export async function GET(req: Request) {
   }
 
   // Fetch the user's rows with RLS
-  const { data: rows, error } = await supabase
+  const { data: rows, error: entriesError } = await supabase
     .from("entries")
-    .select("*")
+    .select(
+      "id, platform, started_at, ended_at, gross_cents, tips_cents, miles, fuel_cost_cents, notes"
+    )
     .eq("user_id", user.id)
     .order("started_at", { ascending: false });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (entriesError) {
+    return NextResponse.json(
+      { error: "Failed to load entries for export" },
+      { status: 500 }
+    );
   }
 
-  // Build CSV
-  const header = [
-    "id",
-    "platform",
-    "started_at",
-    "ended_at",
-    "hours",
-    "miles",
-    "gross_usd",
-    "tips_usd",
-    "fuel_cost_usd",
-    "notes",
-  ].join(",");
+  const { data: settingsData, error: settingsError } = await supabase
+    .from("settings")
+    .select("mileage_rate_cents, tax_rate_bps")
+    .eq("user_id", user.id)
+    .maybeSingle();
 
-  const lines = (rows ?? []).map((r) => {
-    const started = new Date(r.started_at).toISOString();
-    const ended = new Date(r.ended_at).toISOString();
-    const hours = Math.max(
-      0,
-      (new Date(r.ended_at).getTime() - new Date(r.started_at).getTime()) /
-        (1000 * 60 * 60)
-    ).toFixed(2);
-    const notes =
-      r.notes && r.notes.length
-        ? `"${String(r.notes).replace(/"/g, '""')}"`
-        : "";
+  if (settingsError) {
+    return NextResponse.json(
+      { error: "Failed to load settings for export" },
+      { status: 500 }
+    );
+  }
 
-    return [
-      r.id,
-      r.platform,
-      started,
-      ended,
-      hours,
-      Number(r.miles ?? 0).toFixed(2),
-      centsToDollars(r.gross_cents),
-      centsToDollars(r.tips_cents),
-      centsToDollars(r.fuel_cost_cents),
-      notes,
-    ].join(",");
-  });
-
-  const csv = [header, ...lines].join("\r\n");
+  let csv: string;
+  try {
+    csv = buildEntryExportCsv(
+      (rows ?? []) as ExportEntry[],
+      (settingsData ?? null) as ExportSettings
+    );
+  } catch (error: unknown) {
+    console.error("Failed to generate CSV export", error);
+    return NextResponse.json(
+      { error: "Failed to generate export" },
+      { status: 500 }
+    );
+  }
 
   const today = new Date();
   const y = today.getFullYear();

@@ -3,7 +3,57 @@ import test from "node:test";
 
 // Node executes this TypeScript file directly and requires the runtime extension.
 // @ts-expect-error TypeScript does not allow .ts extensions without allowImportingTsExtensions.
-import { getLocalDateKey, getLocalMonthKey, getLocalMonthRange, getLocalWeekRange, getRecentLocalDaysRange, getStartOfLocalWeek, getWeekRangeUtc, isInHalfOpenRange } from "./datetime.ts";
+import { getCompletedUtcWeekRange, getLocalDateKey, getLocalMonthKey, getLocalMonthRange, getLocalWeekRange, getRecentLocalDaysRange, getStartOfLocalWeek, getWeekRangeUtc, isInHalfOpenRange } from "./datetime.ts";
+
+test("completed UTC week is previous Monday inclusive to current Monday exclusive", () => {
+  const range = getCompletedUtcWeekRange(
+    new Date("2026-08-24T13:00:00.000Z")
+  );
+
+  assert.equal(range.startInclusive.toISOString(), "2026-08-17T00:00:00.000Z");
+  assert.equal(range.endExclusive.toISOString(), "2026-08-24T00:00:00.000Z");
+  assert.equal(
+    isInHalfOpenRange(new Date("2026-08-17T00:00:00.000Z"), range),
+    true
+  );
+  assert.equal(
+    isInHalfOpenRange(new Date("2026-08-23T23:59:59.999Z"), range),
+    true
+  );
+  assert.equal(
+    isInHalfOpenRange(new Date("2026-08-24T00:00:00.000Z"), range),
+    false
+  );
+});
+
+test("adjacent completed UTC weeks do not overlap", () => {
+  const reference = new Date("2026-08-24T13:00:00.000Z");
+  const previous = getCompletedUtcWeekRange(reference, -1);
+  const completed = getCompletedUtcWeekRange(reference);
+
+  assert.equal(previous.endExclusive.getTime(), completed.startInclusive.getTime());
+  assert.equal(isInHalfOpenRange(completed.startInclusive, previous), false);
+  assert.equal(isInHalfOpenRange(completed.startInclusive, completed), true);
+});
+
+test("UTC completed-week boundaries ignore the server local timezone", () => {
+  const range = getCompletedUtcWeekRange(
+    new Date("2026-08-24T00:30:00.000+14:00")
+  );
+
+  assert.equal(range.startInclusive.toISOString(), "2026-08-10T00:00:00.000Z");
+  assert.equal(range.endExclusive.toISOString(), "2026-08-17T00:00:00.000Z");
+});
+
+test("Sunday-start Monday-end entry belongs to the earlier UTC week", () => {
+  const reference = new Date("2026-08-31T13:00:00.000Z");
+  const earlierWeek = getCompletedUtcWeekRange(reference);
+  const sundayStart = new Date("2026-08-30T23:00:00.000Z");
+  const mondayEnd = new Date("2026-08-31T02:00:00.000Z");
+
+  assert.equal(isInHalfOpenRange(sundayStart, earlierWeek), true);
+  assert.equal(isInHalfOpenRange(mondayEnd, earlierWeek), false);
+});
 
 test("Monday 00:00 belongs to the new week", () => {
   const monday = new Date(2026, 7, 24, 0, 0, 0, 0);

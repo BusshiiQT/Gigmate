@@ -208,14 +208,34 @@ function DashboardClient() {
   const handleExport = async () => {
     try {
       setExporting(true);
-      const res = await fetch("/api/export");
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session?.access_token) {
+        throw new Error("Your session has expired. Please sign in again.");
+      }
+
+      const res = await fetch("/api/export", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
       const text = await res.text();
 
       if (!res.ok) {
         let msg = "Export failed";
         try {
-          const parsed = JSON.parse(text);
-          msg = parsed?.error || msg;
+          const parsed: unknown = JSON.parse(text);
+          if (
+            typeof parsed === "object" &&
+            parsed !== null &&
+            "error" in parsed &&
+            typeof parsed.error === "string"
+          ) {
+            msg = parsed.error;
+          }
         } catch {}
         throw new Error(msg);
       }
@@ -232,8 +252,12 @@ function DashboardClient() {
       a.remove();
       window.URL.revokeObjectURL(url);
       toast({ title: "CSV exported" });
-    } catch (err: any) {
-      toast({ title: "Export failed", description: err.message });
+    } catch (error: unknown) {
+      const description =
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while exporting your entries.";
+      toast({ title: "Export failed", description });
     } finally {
       setExporting(false);
     }
@@ -295,7 +319,7 @@ function DashboardClient() {
               <div className="mb-3 text-4xl">🚗</div>
               <p className="font-medium">No entries yet</p>
               <p className="mt-1 text-sm">
-                Start by adding your first shift or batch. We'll crunch the
+                Start by adding your first shift or batch. We&apos;ll crunch the
                 numbers for you.
               </p>
               <Link href="/entries/new" className="mt-4">

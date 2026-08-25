@@ -41,6 +41,32 @@ export function getLocalWeekRange(
   return { startInclusive, endExclusive };
 }
 
+export function getCompletedUtcWeekRange(
+  referenceDate: Date,
+  weekOffset = 0
+): DateRange {
+  requireValidDate(referenceDate, "referenceDate");
+  if (!Number.isSafeInteger(weekOffset)) {
+    throw new TypeError("weekOffset must be a safe integer");
+  }
+
+  const daysSinceMonday = (referenceDate.getUTCDay() + 6) % 7;
+  const currentMondayUtc = Date.UTC(
+    referenceDate.getUTCFullYear(),
+    referenceDate.getUTCMonth(),
+    referenceDate.getUTCDate() - daysSinceMonday
+  );
+  const millisecondsPerWeek = 7 * 24 * 60 * 60 * 1_000;
+  const endExclusive = new Date(
+    currentMondayUtc + weekOffset * millisecondsPerWeek
+  );
+  const startInclusive = new Date(
+    endExclusive.getTime() - millisecondsPerWeek
+  );
+
+  return { startInclusive, endExclusive };
+}
+
 export function getLocalMonthRange(
   referenceDate: Date,
   monthOffset = 0
