@@ -1,7 +1,8 @@
 // app/auth/callback/route.ts
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { getSafeRedirectUrl } from "./redirect";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -9,10 +10,10 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const next = url.searchParams.get("next") ?? "/dashboard";
+  const next = url.searchParams.get("next");
 
   // Prepare the redirect response that we'll RETURN to the browser.
-  const redirectUrl = new URL(next, url.origin);
+  const redirectUrl = getSafeRedirectUrl(next, url.origin);
   const res = NextResponse.redirect(redirectUrl);
 
   // We MUST wire Supabase cookie setters to THIS response (res.cookies),
@@ -29,10 +30,10 @@ export async function GET(request: Request) {
           return cookieStore.get(name)?.value;
         },
         // Write cookies to the response we will return
-        set(name: string, value: string, options: any) {
+        set(name: string, value: string, options: CookieOptions) {
           res.cookies.set(name, value, options);
         },
-        remove(name: string, options: any) {
+        remove(name: string, options: CookieOptions) {
           res.cookies.set(name, "", { ...options, maxAge: 0 });
         },
       },
