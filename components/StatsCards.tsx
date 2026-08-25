@@ -4,26 +4,43 @@
 import { formatCurrency } from "@/lib/utils";
 
 type StatsCardsProps = {
-  gross_cents: number;
-  expenses_cents: number;
-  net_cents: number;
-  hours: number;
+  totalEarningsCents: number;
+  cashProfitCents: number;
+  mileageDeductionCents: number;
+  estimatedTaxReserveCents: number;
+  estimatedTakeHomeCents: number;
+  estimatedHourlyRateCents: number;
 };
 
 export default function StatsCards({
-  gross_cents,
-  expenses_cents,
-  net_cents,
-  hours,
+  totalEarningsCents,
+  cashProfitCents,
+  mileageDeductionCents,
+  estimatedTaxReserveCents,
+  estimatedTakeHomeCents,
+  estimatedHourlyRateCents,
 }: StatsCardsProps) {
   const cards = [
-    { label: "Gross", value: formatCurrency(gross_cents) },
-    { label: "Est. Expenses", value: formatCurrency(expenses_cents) },
-    { label: "Net Profit", value: formatCurrency(net_cents) },
     {
-      label: "Effective Hourly",
-      value:
-        hours > 0 ? formatCurrency(Math.round(net_cents / hours)) : "$0.00",
+      label: "Total earnings",
+      value: formatCurrency(totalEarningsCents),
+    },
+    { label: "Cash profit", value: formatCurrency(cashProfitCents) },
+    {
+      label: "Mileage deduction",
+      value: formatCurrency(mileageDeductionCents),
+    },
+    {
+      label: "Estimated tax reserve",
+      value: formatCurrency(estimatedTaxReserveCents),
+    },
+    {
+      label: "Estimated take-home",
+      value: formatCurrency(estimatedTakeHomeCents),
+    },
+    {
+      label: "Effective hourly rate",
+      value: formatCurrency(estimatedHourlyRateCents),
     },
   ];
 

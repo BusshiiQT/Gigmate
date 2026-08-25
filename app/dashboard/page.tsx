@@ -3,7 +3,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { addDays, startOfWeek } from "date-fns";
 import PatternInsights from "@/components/PatternInsights";
 
 import { Button } from "@/components/ui/button";
@@ -12,17 +11,22 @@ import { useToast } from "@/components/ui/use-toast";
 import AuthGate from "@/components/AuthGate";
 import EntriesTable from "@/components/EntriesTable";
 import StatsCards from "@/components/StatsCards";
-import WeeklyNetChart, { ChartMode } from "@/components/WeeklyNetChart";
-import InsightsPanel from "@/components/InsightsPanel";
+import WeeklyNetChart, {
+  ChartMode,
+  type ChartEntry,
+} from "@/components/WeeklyNetChart";
+import InsightsPanel, {
+  type InsightEntry,
+} from "@/components/InsightsPanel";
 import { DashboardSkeleton } from "@/components/SkeletonBlocks";
 
 import type { EntryRow, SettingsRow } from "@/lib/types";
+import { aggregateCalculations, calculateEntry } from "@/lib/finance";
 import {
-  durationHours,
-  mileageDeductionCents,
-  taxEstimateCents,
-  netProfitCents,
-} from "@/lib/utils";
+  getLocalMonthRange,
+  getLocalWeekRange,
+  getWeekRangeUtc,
+} from "@/lib/datetime";
 
 type Scope = "week" | "all";
 
@@ -37,26 +41,46 @@ export default function DashboardPage() {
 function DashboardClient() {
   const { toast } = useToast();
   const [entries, setEntries] = useState<EntryRow[]>([]);
+  const [analyticalEntries, setAnalyticalEntries] = useState<InsightEntry[]>(
+    []
+  );
+  const [chartEntries, setChartEntries] = useState<ChartEntry[]>([]);
+  const [analyticsUnavailable, setAnalyticsUnavailable] = useState(false);
+  const [chartUnavailable, setChartUnavailable] = useState(false);
   const [settings, setSettings] = useState<SettingsRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [scope, setScope] = useState<Scope>("week");
   const [chartMode, setChartMode] = useState<ChartMode>("day");
   const [exporting, setExporting] = useState(false);
 
-  // Current week (Mon–Sun) range in ISO
-  const weekRange = useMemo(() => {
-    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-    weekStart.setHours(0, 0, 0, 0);
-    const weekEnd = addDays(weekStart, 7);
-    weekEnd.setHours(23, 59, 59, 999);
+  const weekRange = useMemo(() => getWeekRangeUtc(new Date()), []);
+  const boundedDataRange = useMemo(() => {
+    const now = new Date();
+    const firstChartWeek = getLocalWeekRange(now, -7);
+    const currentWeek = getLocalWeekRange(now);
+    const firstChartMonth = getLocalMonthRange(now, -11);
+    const currentMonth = getLocalMonthRange(now);
+
     return {
-      startISO: weekStart.toISOString(),
-      endISO: weekEnd.toISOString(),
+      startInclusiveIso: new Date(
+        Math.min(
+          firstChartWeek.startInclusive.getTime(),
+          firstChartMonth.startInclusive.getTime()
+        )
+      ).toISOString(),
+      endExclusiveIso: new Date(
+        Math.max(
+          currentWeek.endExclusive.getTime(),
+          currentMonth.endExclusive.getTime()
+        )
+      ).toISOString(),
     };
   }, []);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
+    setAnalyticsUnavailable(false);
+    setChartUnavailable(false);
 
     const {
       data: { user },
@@ -64,6 +88,8 @@ function DashboardClient() {
 
     if (!user) {
       setEntries([]);
+      setAnalyticalEntries([]);
+      setChartEntries([]);
       setSettings(null);
       setLoading(false);
       return;
@@ -94,21 +120,65 @@ function DashboardClient() {
 
     if (scope === "week") {
       query = query
-        .lte("started_at", weekRange.endISO)
-        .gte("ended_at", weekRange.startISO);
+        .gte("started_at", weekRange.startInclusiveIso)
+        .lt("started_at", weekRange.endExclusiveIso);
     }
 
     const { data, error } = await query;
+    const displayEntries = (data ?? []) as EntryRow[];
 
     if (error) {
       toast({ title: "Error loading entries", description: error.message });
       setEntries([]);
     } else {
-      setEntries((data ?? []) as EntryRow[]);
+      setEntries(displayEntries);
+    }
+
+    if (scope === "all") {
+      if (error) {
+        setAnalyticalEntries([]);
+        setChartEntries([]);
+        setAnalyticsUnavailable(true);
+        setChartUnavailable(true);
+      } else {
+        setAnalyticalEntries(displayEntries);
+        setChartEntries(displayEntries);
+      }
+    } else {
+      const { data: boundedData, error: boundedDataError } = await supabase
+        .from("entries")
+        .select(
+          "platform, started_at, ended_at, gross_cents, tips_cents, miles, fuel_cost_cents"
+        )
+        .eq("user_id", user.id)
+        .gte("started_at", boundedDataRange.startInclusiveIso)
+        .lt("started_at", boundedDataRange.endExclusiveIso);
+
+      if (boundedDataError) {
+        toast({
+          title: "Chart and insights unavailable",
+          description: boundedDataError.message,
+        });
+        setAnalyticalEntries([]);
+        setChartEntries([]);
+        setAnalyticsUnavailable(true);
+        setChartUnavailable(true);
+      } else {
+        const sharedEntries = (boundedData ?? []) as InsightEntry[];
+        setAnalyticalEntries(sharedEntries);
+        setChartEntries(sharedEntries);
+      }
     }
 
     setLoading(false);
-  }, [scope, weekRange.startISO, weekRange.endISO, toast]);
+  }, [
+    scope,
+    boundedDataRange.startInclusiveIso,
+    boundedDataRange.endExclusiveIso,
+    weekRange.startInclusiveIso,
+    weekRange.endExclusiveIso,
+    toast,
+  ]);
 
   useEffect(() => {
     fetchAll();
@@ -116,30 +186,23 @@ function DashboardClient() {
 
   const stats = useMemo(() => {
     if (!settings) {
-      return { gross: 0, fuel: 0, tax: 0, net: 0, hours: 0 };
+      return aggregateCalculations([]);
     }
 
-    const gross = entries.reduce((s, e) => s + e.gross_cents, 0);
-    const fuel = entries.reduce((s, e) => s + e.fuel_cost_cents, 0);
-    const miles = entries.reduce((s, e) => s + Number(e.miles || 0), 0);
-    const hours = entries.reduce(
-      (s, e) => s + durationHours(e.started_at, e.ended_at),
-      0
+    const calculations = entries.map((entry) =>
+      calculateEntry({
+        grossCents: entry.gross_cents,
+        tipsCents: entry.tips_cents,
+        fuelCostCents: entry.fuel_cost_cents,
+        miles: Number(entry.miles),
+        mileageRateCents: settings.mileage_rate_cents,
+        taxRateBps: settings.tax_rate_bps,
+        startedAtMilliseconds: new Date(entry.started_at).getTime(),
+        endedAtMilliseconds: new Date(entry.ended_at).getTime(),
+      })
     );
 
-    const mileageDeduction = mileageDeductionCents(
-      miles,
-      settings.mileage_rate_cents
-    );
-    const tax = taxEstimateCents(
-      gross,
-      mileageDeduction,
-      fuel,
-      settings.tax_rate_bps
-    );
-    const net = netProfitCents(gross, fuel, tax);
-
-    return { gross, fuel, tax, net, hours };
+    return aggregateCalculations(calculations);
   }, [entries, settings]);
 
   const handleExport = async () => {
@@ -244,10 +307,12 @@ function DashboardClient() {
               {/* Stats summary */}
               {settings && (
                 <StatsCards
-                  gross_cents={stats.gross}
-                  expenses_cents={stats.fuel + stats.tax}
-                  net_cents={stats.net}
-                  hours={stats.hours}
+                  totalEarningsCents={stats.totalEarningsCents}
+                  cashProfitCents={stats.cashProfitCents}
+                  mileageDeductionCents={stats.mileageDeductionCents}
+                  estimatedTaxReserveCents={stats.estimatedTaxReserveCents}
+                  estimatedTakeHomeCents={stats.estimatedTakeHomeCents}
+                  estimatedHourlyRateCents={stats.estimatedHourlyRateCents}
                 />
               )}
 
@@ -293,7 +358,8 @@ function DashboardClient() {
                   </div>
 
                   <WeeklyNetChart
-                    entries={entries}
+                    chartEntries={chartEntries}
+                    unavailable={chartUnavailable}
                     settings={settings}
                     mode={chartMode}
                   />
@@ -302,13 +368,19 @@ function DashboardClient() {
 
               {/* Insights */}
               <InsightsPanel
-                entries={entries}
+                displayEntries={entries}
+                analyticalEntries={analyticalEntries}
+                analyticsUnavailable={analyticsUnavailable}
                 settings={settings}
                 scope={scope}
               />
 
               {/* Pattern Insights */}
-              <PatternInsights entries={entries} settings={settings} />
+              <PatternInsights
+                patternEntries={analyticalEntries}
+                unavailable={analyticsUnavailable}
+                settings={settings}
+              />
 
               {/* Table */}
               <EntriesTable entries={entries} onChanged={fetchAll} />

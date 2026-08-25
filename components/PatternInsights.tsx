@@ -2,21 +2,29 @@
 
 import type { EntryRow, SettingsRow } from "@/lib/types";
 import {
-  durationHours,
-  mileageDeductionCents,
-  taxEstimateCents,
-  netProfitCents,
-} from "@/lib/utils";
+  aggregateCalculations,
+  calculateEntry,
+  type EntryCalculation,
+} from "@/lib/finance";
 import {
-  format,
-  parseISO,
-  startOfWeek,
-  subDays,
-  isAfter,
-} from "date-fns";
+  getRecentLocalDaysRange,
+  isInHalfOpenRange,
+} from "@/lib/datetime";
+
+export type PatternEntry = Pick<
+  EntryRow,
+  | "platform"
+  | "started_at"
+  | "ended_at"
+  | "gross_cents"
+  | "tips_cents"
+  | "miles"
+  | "fuel_cost_cents"
+>;
 
 interface PatternInsightsProps {
-  entries: EntryRow[];
+  patternEntries: PatternEntry[];
+  unavailable: boolean;
   settings: SettingsRow | null;
 }
 
@@ -31,173 +39,168 @@ function formatMoney(cents: number) {
 
 type DayBucket = {
   label: string;
-  totalNet: number;
-  totalHours: number;
+  calculations: EntryCalculation[];
 };
 
 type TimeBucket = {
   key: string;
   label: string;
   startHour: number;
-  endHour: number; // exclusive
-  totalNet: number;
-  totalHours: number;
+  endHour: number;
+  calculations: EntryCalculation[];
 };
 
+function calculatePatternEntry(entry: PatternEntry, settings: SettingsRow) {
+  return calculateEntry({
+    grossCents: entry.gross_cents,
+    tipsCents: entry.tips_cents,
+    fuelCostCents: entry.fuel_cost_cents,
+    miles: Number(entry.miles),
+    mileageRateCents: settings.mileage_rate_cents,
+    taxRateBps: settings.tax_rate_bps,
+    startedAtMilliseconds: new Date(entry.started_at).getTime(),
+    endedAtMilliseconds: new Date(entry.ended_at).getTime(),
+  });
+}
+
 export default function PatternInsights({
-  entries,
+  patternEntries,
+  unavailable,
   settings,
 }: PatternInsightsProps) {
-  if (!entries.length || !settings) return null;
+  if (unavailable) {
+    return (
+      <section className="rounded-3xl border bg-slate-100/90 p-4 text-sm text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 sm:p-5">
+        Pattern insights are currently unavailable.
+      </section>
+    );
+  }
 
-  const now = new Date();
-  const thirtyDaysAgo = subDays(now, 30);
+  if (!patternEntries.length || !settings) return null;
 
-  // Use last 30 days to keep patterns fresh
-  const recent = entries.filter((e) =>
-    isAfter(parseISO(e.started_at), thirtyDaysAgo)
-  );
+  const analysisRange = getRecentLocalDaysRange(new Date(), 30);
+  const recent = patternEntries
+    .map((entry) => ({
+      entry,
+      startedAt: new Date(entry.started_at),
+    }))
+    .filter(({ startedAt }) => isInHalfOpenRange(startedAt, analysisRange))
+    .map(({ entry, startedAt }) => ({
+      entry,
+      startedAt,
+      calculation: calculatePatternEntry(entry, settings),
+    }));
+
   if (!recent.length) return null;
 
-  // Helper to compute net + hours
-  const computeStats = (e: EntryRow) => {
-    const miles = Number(e.miles || 0);
-    const mileageDeduction = mileageDeductionCents(
-      miles,
-      settings.mileage_rate_cents
-    );
-    const tax = taxEstimateCents(
-      e.gross_cents,
-      mileageDeduction,
-      e.fuel_cost_cents,
-      settings.tax_rate_bps
-    );
-    const net = netProfitCents(e.gross_cents, e.fuel_cost_cents, tax);
-    const hours = durationHours(e.started_at, e.ended_at);
-    return { net, hours };
-  };
-
-  // ---------- 1) BEST DAY OF WEEK (avg hourly) ----------
   const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const dayBuckets: DayBucket[] = dayLabels.map((label) => ({
     label,
-    totalNet: 0,
-    totalHours: 0,
+    calculations: [],
   }));
 
-  for (const e of recent) {
-    const d = parseISO(e.started_at);
-    const { net, hours } = computeStats(e);
-    const dow = d.getDay(); // 0..6
-    dayBuckets[dow].totalNet += net;
-    dayBuckets[dow].totalHours += hours;
+  for (const { startedAt, calculation } of recent) {
+    dayBuckets[startedAt.getDay()].calculations.push(calculation);
   }
 
-  let bestDay: { label: string; hourly: number } | null = null;
-
-  for (const b of dayBuckets) {
-    if (b.totalHours <= 0) continue;
-    const hourly = b.totalNet / b.totalHours;
-    if (!bestDay || hourly > bestDay.hourly) {
-      bestDay = { label: b.label, hourly };
+  let bestDay: { label: string; hourlyCents: number } | null = null;
+  for (const bucket of dayBuckets) {
+    const totals = aggregateCalculations(bucket.calculations);
+    if (totals.workedMilliseconds <= 0) continue;
+    if (!bestDay || totals.estimatedHourlyRateCents > bestDay.hourlyCents) {
+      bestDay = {
+        label: bucket.label,
+        hourlyCents: totals.estimatedHourlyRateCents,
+      };
     }
   }
 
-  // ---------- 2) BEST TIME WINDOW (avg hourly) ----------
   const timeBuckets: TimeBucket[] = [
     {
       key: "morning",
       label: "Morning (5–11 AM)",
       startHour: 5,
       endHour: 11,
-      totalNet: 0,
-      totalHours: 0,
+      calculations: [],
     },
     {
       key: "afternoon",
       label: "Afternoon (11 AM–5 PM)",
       startHour: 11,
       endHour: 17,
-      totalNet: 0,
-      totalHours: 0,
+      calculations: [],
     },
     {
       key: "evening",
       label: "Evening (5–10 PM)",
       startHour: 17,
       endHour: 22,
-      totalNet: 0,
-      totalHours: 0,
+      calculations: [],
     },
     {
       key: "late",
       label: "Late night (10 PM–5 AM)",
       startHour: 22,
-      endHour: 29, // treat >24 as next day
-      totalNet: 0,
-      totalHours: 0,
+      endHour: 29,
+      calculations: [],
     },
   ];
 
-  for (const e of recent) {
-    const d = parseISO(e.started_at);
-    let hour = d.getHours(); // 0-23
-
-    // Map to our custom 22-29 range for late night
-    let bucket: TimeBucket | undefined;
-    for (const b of timeBuckets) {
-      const h = hour < 5 && b.key === "late" ? hour + 24 : hour;
-      if (h >= b.startHour && h < b.endHour) {
-        bucket = b;
+  for (const { startedAt, calculation } of recent) {
+    const hour = startedAt.getHours();
+    for (const bucket of timeBuckets) {
+      const comparableHour =
+        hour < 5 && bucket.key === "late" ? hour + 24 : hour;
+      if (
+        comparableHour >= bucket.startHour &&
+        comparableHour < bucket.endHour
+      ) {
+        bucket.calculations.push(calculation);
         break;
       }
     }
-
-    if (!bucket) continue;
-    const { net, hours } = computeStats(e);
-    bucket.totalNet += net;
-    bucket.totalHours += hours;
   }
 
-  let bestTime: { label: string; hourly: number } | null = null;
-  for (const b of timeBuckets) {
-    if (b.totalHours <= 0) continue;
-    const hourly = b.totalNet / b.totalHours;
-    if (!bestTime || hourly > bestTime.hourly) {
-      bestTime = { label: b.label, hourly };
+  let bestTime: { label: string; hourlyCents: number } | null = null;
+  for (const bucket of timeBuckets) {
+    const totals = aggregateCalculations(bucket.calculations);
+    if (totals.workedMilliseconds <= 0) continue;
+    if (!bestTime || totals.estimatedHourlyRateCents > bestTime.hourlyCents) {
+      bestTime = {
+        label: bucket.label,
+        hourlyCents: totals.estimatedHourlyRateCents,
+      };
     }
   }
 
-  // ---------- 3) BEST PLATFORM ON WEEKENDS ----------
-  const weekendNetByPlatform = new Map<string, { net: number; hours: number }>();
+  const weekendByPlatform = new Map<string, EntryCalculation[]>();
+  for (const { entry, startedAt, calculation } of recent) {
+    const dayOfWeek = startedAt.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) continue;
 
-  for (const e of recent) {
-    const d = parseISO(e.started_at);
-    const dow = d.getDay(); // 0=Sun, 6=Sat
-    const isWeekend = dow === 0 || dow === 6;
-    if (!isWeekend) continue;
-
-    const { net, hours } = computeStats(e);
-    const prev = weekendNetByPlatform.get(e.platform) || { net: 0, hours: 0 };
-    weekendNetByPlatform.set(e.platform, {
-      net: prev.net + net,
-      hours: prev.hours + hours,
-    });
+    const calculations = weekendByPlatform.get(entry.platform) ?? [];
+    calculations.push(calculation);
+    weekendByPlatform.set(entry.platform, calculations);
   }
 
   let bestWeekendPlatform:
-    | { platform: string; hourly: number; labelHours: number }
+    | { platform: string; hourlyCents: number; hours: number }
     | null = null;
-
-  for (const [platform, { net, hours }] of weekendNetByPlatform.entries()) {
-    if (hours <= 0) continue;
-    const hourly = net / hours;
-    if (!bestWeekendPlatform || hourly > bestWeekendPlatform.hourly) {
-      bestWeekendPlatform = { platform, hourly, labelHours: hours };
+  for (const [platform, calculations] of weekendByPlatform.entries()) {
+    const totals = aggregateCalculations(calculations);
+    if (totals.workedMilliseconds <= 0) continue;
+    if (
+      !bestWeekendPlatform ||
+      totals.estimatedHourlyRateCents > bestWeekendPlatform.hourlyCents
+    ) {
+      bestWeekendPlatform = {
+        platform,
+        hourlyCents: totals.estimatedHourlyRateCents,
+        hours: totals.workedHours,
+      };
     }
   }
 
-  // If no patterns at all, don't render
   if (!bestDay && !bestTime && !bestWeekendPlatform) return null;
 
   return (
@@ -210,16 +213,15 @@ export default function PatternInsights({
         {bestDay && (
           <li>
             <span className="font-medium">Best day for hourly:</span>{" "}
-            {bestDay.label} with{" "}
-            {formatMoney(Math.round(bestDay.hourly))}/hr.
+            {bestDay.label} with {formatMoney(bestDay.hourlyCents)}/hr.
           </li>
         )}
 
         {bestTime && (
           <li>
             <span className="font-medium">Best time window:</span>{" "}
-            {bestTime.label} — around{" "}
-            {formatMoney(Math.round(bestTime.hourly))}/hr on average.
+            {bestTime.label} — around {formatMoney(bestTime.hourlyCents)}/hr on
+            average.
           </li>
         )}
 
@@ -227,14 +229,14 @@ export default function PatternInsights({
           <li>
             <span className="font-medium">Weekend standout:</span>{" "}
             {bestWeekendPlatform.platform} on Sat/Sun, about{" "}
-            {formatMoney(Math.round(bestWeekendPlatform.hourly))}/hr over{" "}
-            {bestWeekendPlatform.labelHours.toFixed(1)} hrs.
+            {formatMoney(bestWeekendPlatform.hourlyCents)}/hr over{" "}
+            {bestWeekendPlatform.hours.toFixed(1)} hrs.
           </li>
         )}
 
         <li className="pt-1 text-slate-600 dark:text-slate-400">
-          Use these patterns to plan your next week: lean into the days,
-          times, and apps where your hourly is strongest.
+          Use these patterns to plan your next week: lean into the days, times,
+          and apps where your hourly is strongest.
         </li>
       </ul>
     </section>

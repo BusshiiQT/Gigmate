@@ -3,25 +3,35 @@
 
 import type { EntryRow, SettingsRow } from "@/lib/types";
 import {
-  durationHours,
-  mileageDeductionCents,
-  taxEstimateCents,
-  netProfitCents,
-} from "@/lib/utils";
+  aggregateCalculations,
+  calculateEntry,
+  type EntryCalculation,
+} from "@/lib/finance";
 import {
-  addDays,
-  format,
-  isAfter,
-  isBefore,
-  parseISO,
-  startOfMonth,
-  startOfWeek,
-} from "date-fns";
+  getLocalDateKey,
+  getLocalMonthRange,
+  getLocalWeekRange,
+  isInHalfOpenRange,
+} from "@/lib/datetime";
+import { format } from "date-fns";
 
 type Scope = "week" | "all";
 
+export type InsightEntry = Pick<
+  EntryRow,
+  | "platform"
+  | "started_at"
+  | "ended_at"
+  | "gross_cents"
+  | "tips_cents"
+  | "miles"
+  | "fuel_cost_cents"
+>;
+
 interface InsightsPanelProps {
-  entries: EntryRow[];
+  displayEntries: InsightEntry[];
+  analyticalEntries: InsightEntry[];
+  analyticsUnavailable: boolean;
   settings: SettingsRow | null;
   scope: Scope;
 }
@@ -35,103 +45,130 @@ function formatMoney(cents: number) {
   });
 }
 
-// Compute net & hours for any single entry
-function computeEntryStats(e: EntryRow, settings: SettingsRow) {
-  const miles = Number(e.miles || 0);
-  const mileageDeduction = mileageDeductionCents(
-    miles,
-    settings.mileage_rate_cents
-  );
-  const tax = taxEstimateCents(
-    e.gross_cents,
-    mileageDeduction,
-    e.fuel_cost_cents,
-    settings.tax_rate_bps
-  );
-  const net = netProfitCents(e.gross_cents, e.fuel_cost_cents, tax);
-  const hours = durationHours(e.started_at, e.ended_at);
-  return { net_cents: net, hours };
+function calculateInsightEntry(e: InsightEntry, settings: SettingsRow) {
+  return calculateEntry({
+    grossCents: e.gross_cents,
+    tipsCents: e.tips_cents,
+    fuelCostCents: e.fuel_cost_cents,
+    miles: Number(e.miles),
+    mileageRateCents: settings.mileage_rate_cents,
+    taxRateBps: settings.tax_rate_bps,
+    startedAtMilliseconds: new Date(e.started_at).getTime(),
+    endedAtMilliseconds: new Date(e.ended_at).getTime(),
+  });
 }
 
 export default function InsightsPanel({
-  entries,
+  displayEntries,
+  analyticalEntries,
+  analyticsUnavailable,
   settings,
   scope,
 }: InsightsPanelProps) {
-  if (!entries.length || !settings) return null;
+  if (!displayEntries.length || !settings) return null;
 
-  // --- 1. FILTER FOR CURRENT WEEK IF NEEDED ---
-  let filtered = entries;
+  let filtered = displayEntries;
   const now = new Date();
 
-  const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-  weekStart.setHours(0, 0, 0, 0);
-  const weekEnd = addDays(weekStart, 7);
-  weekEnd.setHours(23, 59, 59, 999);
-
   if (scope === "week") {
-    filtered = entries.filter((e) => {
-      const d = parseISO(e.started_at);
-      return !isBefore(d, weekStart) && !isAfter(d, weekEnd);
-    });
+    const currentWeek = getLocalWeekRange(now);
+    filtered = displayEntries.filter((entry) =>
+      isInHalfOpenRange(new Date(entry.started_at), currentWeek)
+    );
     if (!filtered.length) return null;
   }
 
-  // Convert all filtered entries to {net, hours}
   const perEntry = filtered.map((e) => ({
     entry: e,
-    ...computeEntryStats(e, settings),
+    calculation: calculateInsightEntry(e, settings),
   }));
-
-  const totalNet = perEntry.reduce((s, x) => s + x.net_cents, 0);
-  const totalHours = perEntry.reduce((s, x) => s + x.hours, 0);
-  const avgHourly =
-    totalHours > 0 ? Math.round(totalNet / totalHours) : 0;
-
-  const best = perEntry.reduce(
-    (best, curr) =>
-      !best || curr.net_cents > best.net_cents ? curr : best,
-    null as (typeof perEntry)[number] | null
+  const totals = aggregateCalculations(
+    perEntry.map(({ calculation }) => calculation)
   );
 
-  // --- 2. WEEK VS LAST WEEK ---
-  const lastWeekStart = addDays(weekStart, -7);
-  const lastWeekEnd = addDays(weekStart, 0);
-
-  const lastWeekEntries = entries.filter((e) => {
-    const d = parseISO(e.started_at);
-    return !isBefore(d, lastWeekStart) && !isAfter(d, lastWeekEnd);
-  });
-
-  const lastWeekStats = lastWeekEntries.map((e) =>
-    computeEntryStats(e, settings)
-  );
-  const lastWeekNet = lastWeekStats.reduce((s, x) => s + x.net_cents, 0);
-
-  const weekDiff = totalNet - lastWeekNet;
-  const weekPct =
-    lastWeekNet > 0 ? (weekDiff / lastWeekNet) * 100 : null;
-
-  // --- 3. TOP PLATFORM THIS MONTH ---
-  const monthStart = startOfMonth(now);
-
-  const monthEntries = entries.filter(
-    (e) => parseISO(e.started_at) >= monthStart
-  );
-
-  const profitByPlatform = new Map<string, number>();
-  for (const e of monthEntries) {
-    const { net_cents } = computeEntryStats(e, settings);
-    profitByPlatform.set(
-      e.platform,
-      (profitByPlatform.get(e.platform) || 0) + net_cents
-    );
+  const calculationsByDay = new Map<
+    string,
+    { date: Date; calculations: EntryCalculation[] }
+  >();
+  for (const { entry, calculation } of perEntry) {
+    const date = new Date(entry.started_at);
+    const key = getLocalDateKey(date);
+    const day = calculationsByDay.get(key) ?? { date, calculations: [] };
+    day.calculations.push(calculation);
+    calculationsByDay.set(key, day);
   }
 
-  let topPlatform: { platform: string; net: number } | null = null;
-  for (const [p, net] of profitByPlatform.entries()) {
-    if (!topPlatform || net > topPlatform.net) {
-      topPlatform = { platform: p, net };
+  let bestDay: { date: Date; estimatedTakeHomeCents: number } | null = null;
+  for (const day of calculationsByDay.values()) {
+    const dayTotals = aggregateCalculations(day.calculations);
+    if (
+      !bestDay ||
+      dayTotals.estimatedTakeHomeCents > bestDay.estimatedTakeHomeCents
+    ) {
+      bestDay = {
+        date: day.date,
+        estimatedTakeHomeCents: dayTotals.estimatedTakeHomeCents,
+      };
+    }
+  }
+
+  let weekComparison: { differenceCents: number; percentage: number | null } | null =
+    null;
+  let topPlatform: { platform: string; estimatedTakeHomeCents: number } | null =
+    null;
+
+  if (!analyticsUnavailable) {
+    const currentWeek = getLocalWeekRange(now);
+    const previousWeek = getLocalWeekRange(now, -1);
+    const currentWeekCalculations: EntryCalculation[] = [];
+    const previousWeekCalculations: EntryCalculation[] = [];
+    const calculationsByPlatform = new Map<string, EntryCalculation[]>();
+    const currentMonth = getLocalMonthRange(now);
+
+    for (const entry of analyticalEntries) {
+      const startedAt = new Date(entry.started_at);
+      const calculation = calculateInsightEntry(entry, settings);
+
+      if (isInHalfOpenRange(startedAt, currentWeek)) {
+        currentWeekCalculations.push(calculation);
+      } else if (isInHalfOpenRange(startedAt, previousWeek)) {
+        previousWeekCalculations.push(calculation);
+      }
+
+      if (!isInHalfOpenRange(startedAt, currentMonth)) {
+        continue;
+      }
+
+      const calculations = calculationsByPlatform.get(entry.platform) ?? [];
+      calculations.push(calculation);
+      calculationsByPlatform.set(entry.platform, calculations);
+    }
+
+    const currentWeekTotals = aggregateCalculations(currentWeekCalculations);
+    const previousWeekTotals = aggregateCalculations(previousWeekCalculations);
+    const differenceCents =
+      currentWeekTotals.estimatedTakeHomeCents -
+      previousWeekTotals.estimatedTakeHomeCents;
+    weekComparison = {
+      differenceCents,
+      percentage:
+        previousWeekTotals.estimatedTakeHomeCents > 0
+          ? (differenceCents /
+              previousWeekTotals.estimatedTakeHomeCents) *
+            100
+          : null,
+    };
+
+    for (const [platform, calculations] of calculationsByPlatform.entries()) {
+      const estimatedTakeHomeCents = aggregateCalculations(
+        calculations
+      ).estimatedTakeHomeCents;
+      if (
+        !topPlatform ||
+        estimatedTakeHomeCents > topPlatform.estimatedTakeHomeCents
+      ) {
+        topPlatform = { platform, estimatedTakeHomeCents };
+      }
     }
   }
 
@@ -142,51 +179,57 @@ export default function InsightsPanel({
       </h2>
 
       <ul className="mt-3 space-y-1.5 text-slate-700 dark:text-slate-200">
-        {/* TOTAL NET */}
         <li>
-          <span className="font-medium">Total net {scope === "week" ? "this week" : ""}:</span>{" "}
-          {formatMoney(totalNet)}{" "}
-          {totalHours > 0 && (
+          <span className="font-medium">
+            Estimated take-home {scope === "week" ? "this week" : ""}:
+          </span>{" "}
+          {formatMoney(totals.estimatedTakeHomeCents)}{" "}
+          {totals.workedMilliseconds > 0 && (
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              ({totalHours.toFixed(1)} hrs • {formatMoney(avgHourly)} / hr)
+              ({totals.workedHours.toFixed(1)} hrs •{" "}
+              {formatMoney(totals.estimatedHourlyRateCents)} / hr)
             </span>
           )}
         </li>
 
-        {/* BEST DAY */}
-        {best && (
+        {bestDay && (
           <li>
             <span className="font-medium">Best earning day:</span>{" "}
-            {format(parseISO(best.entry.started_at), "EEE MMM d")} —{" "}
-            {formatMoney(best.net_cents)} net.
+            {format(bestDay.date, "EEE MMM d")} —{" "}
+            {formatMoney(bestDay.estimatedTakeHomeCents)} estimated take-home.
           </li>
         )}
 
-        {/* WEEK VS LAST WEEK */}
-        {scope === "week" && (
+        {scope === "week" && weekComparison && (
           <li>
             <span className="font-medium">Week-over-week change:</span>{" "}
-            {weekDiff >= 0 ? "+" : ""}
-            {formatMoney(weekDiff)}{" "}
-            {weekPct !== null && (
+            {weekComparison.differenceCents >= 0 ? "+" : ""}
+            {formatMoney(weekComparison.differenceCents)}{" "}
+            {weekComparison.percentage !== null && (
               <span
                 className={`text-xs ${
-                  weekPct >= 0
+                  weekComparison.percentage >= 0
                     ? "text-green-600 dark:text-green-400"
                     : "text-red-600 dark:text-red-400"
                 }`}
               >
-                ({weekPct.toFixed(1)}%)
+                ({weekComparison.percentage.toFixed(1)}%)
               </span>
             )}
           </li>
         )}
 
-        {/* TOP PLATFORM MONTH */}
         {topPlatform && (
           <li>
             <span className="font-medium">Top platform this month:</span>{" "}
-            {topPlatform.platform} ({formatMoney(topPlatform.net)})
+            {topPlatform.platform} (
+            {formatMoney(topPlatform.estimatedTakeHomeCents)})
+          </li>
+        )}
+
+        {analyticsUnavailable && (
+          <li className="text-slate-600 dark:text-slate-400">
+            Week-over-week and monthly insights are currently unavailable.
           </li>
         )}
 
