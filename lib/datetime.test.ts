@@ -3,7 +3,15 @@ import test from "node:test";
 
 // Node executes this TypeScript file directly and requires the runtime extension.
 // @ts-expect-error TypeScript does not allow .ts extensions without allowImportingTsExtensions.
-import { getCompletedUtcWeekRange, getLocalDateKey, getLocalMonthKey, getLocalMonthRange, getLocalWeekRange, getRecentLocalDaysRange, getStartOfLocalWeek, getWeekRangeUtc, isInHalfOpenRange } from "./datetime.ts";
+import { getCompletedUtcWeekRange, getLocalDateKey, getLocalMonthKey, getLocalMonthRange, getLocalWeekRange, getRecentLocalDaysRange, getStartOfLocalWeek, getWeekRangeUtc, isInHalfOpenRange, localDateTimeInputToUtcIso, localDateTimeInputValue, utcIsoToLocalDateTimeInput } from "./datetime.ts";
+
+test("stored UTC timestamps round-trip through local datetime input values", () => {
+  const stored = "2026-08-26T03:30:00.000Z";
+  const localInput = utcIsoToLocalDateTimeInput(stored);
+
+  assert.equal(localInput, localDateTimeInputValue(new Date(stored)));
+  assert.equal(localDateTimeInputToUtcIso(localInput), new Date(localInput).toISOString());
+});
 
 test("completed UTC week is previous Monday inclusive to current Monday exclusive", () => {
   const range = getCompletedUtcWeekRange(

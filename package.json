@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test lib/finance.test.ts lib/datetime.test.ts lib/weeklySummary.test.ts lib/csv.test.ts app/api/cron/weekly-summary/route.test.ts app/auth/callback/route.test.ts"
+    "test": "node --test lib/finance.test.ts lib/datetime.test.ts lib/validation.test.ts lib/weeklySummary.test.ts lib/csv.test.ts app/api/cron/weekly-summary/route.test.ts app/auth/callback/route.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

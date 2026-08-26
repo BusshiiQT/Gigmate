@@ -1,5 +1,7 @@
 // lib/types.ts
-export type Platform = "Uber" | "Lyft" | "DoorDash" | "Instacart" | "AmazonFlex" | "Other";
+import type { Platform } from "@/lib/validation";
+
+export type { Platform } from "@/lib/validation";
 
 export type SettingsRow = {
   id: string;

@@ -5,8 +5,10 @@ import { supabase } from "@/lib/supabaseClient";
 import AuthGate from "@/components/AuthGate";
 import EntryForm, {
   EntryFormInitial,
-  localDateTimeInputValue,
 } from "@/components/EntryForm";
+import { localDateTimeInputValue } from "@/lib/datetime";
+import { isPlatform } from "@/lib/validation";
+import type { EntryRow } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -44,7 +46,7 @@ function NewEntryClient() {
         .limit(1);
 
       if (error) throw error;
-      const last: any = data?.[0];
+      const last = data?.[0] as EntryRow | undefined;
       if (!last) {
         toast({ title: "No previous entry to duplicate" });
         return;
@@ -53,15 +55,7 @@ function NewEntryClient() {
       // Prefill with last entry's values; reset times to local "now"
       const nowLocal = localDateTimeInputValue();
 
-      const safePlatform =
-        last.platform === "Uber" ||
-        last.platform === "Lyft" ||
-        last.platform === "DoorDash" ||
-        last.platform === "Instacart" ||
-        last.platform === "AmazonFlex" ||
-        last.platform === "Other"
-          ? last.platform
-          : "Uber";
+      const safePlatform = isPlatform(last.platform) ? last.platform : "Uber";
 
       setInitial({
         platform: safePlatform,
@@ -75,10 +69,10 @@ function NewEntryClient() {
       });
 
       toast({ title: "Duplicated last entry" });
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({
         title: "Duplicate failed",
-        description: e?.message ?? "Unknown error",
+        description: e instanceof Error ? e.message : "Unknown error",
       });
     } finally {
       setBusy(false);

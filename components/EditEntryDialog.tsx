@@ -1,34 +1,25 @@
 "use client";
 
 import * as React from "react";
-import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import type { EntryRow, Platform } from "@/lib/types";
+import type { EntryRow } from "@/lib/types";
 import { toCents } from "@/lib/utils";
+import {
+  entrySchema,
+  optionalNumber,
+  PLATFORMS,
+  type EntryFormValues,
+} from "@/lib/validation";
+import {
+  localDateTimeInputToUtcIso,
+  utcIsoToLocalDateTimeInput,
+} from "@/lib/datetime";
 
-const schema = z.object({
-  platform: z.enum([
-    "Uber",
-    "Lyft",
-    "DoorDash",
-    "Instacart",
-    "AmazonFlex",
-    "Other",
-  ]),
-  started_at: z.string().min(1),
-  ended_at: z.string().min(1),
-  gross: z.string().min(1),
-  tips: z.string().optional(),
-  miles: z.string().optional(),
-  fuel_cost: z.string().optional(),
-  notes: z.string().optional().nullable(),
-});
-
-type FormValues = z.input<typeof schema>;
+type FormValues = EntryFormValues;
 
 export default function EditEntryDialog({
   entry,
@@ -44,13 +35,13 @@ export default function EditEntryDialog({
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(entrySchema),
     defaultValues: {
-      platform: entry.platform as Platform,
-      started_at: entry.started_at.slice(0, 16),
-      ended_at: entry.ended_at.slice(0, 16),
+      platform: entry.platform,
+      started_at: utcIsoToLocalDateTimeInput(entry.started_at),
+      ended_at: utcIsoToLocalDateTimeInput(entry.ended_at),
       gross: (entry.gross_cents / 100).toString(),
       tips: (entry.tips_cents / 100).toString(),
       miles: String(entry.miles ?? 0),
@@ -64,11 +55,11 @@ export default function EditEntryDialog({
       .from("entries")
       .update({
         platform: v.platform,
-        started_at: v.started_at,
-        ended_at: v.ended_at,
+        started_at: localDateTimeInputToUtcIso(v.started_at),
+        ended_at: localDateTimeInputToUtcIso(v.ended_at),
         gross_cents: toCents(v.gross),
         tips_cents: toCents(v.tips || "0"),
-        miles: parseFloat(v.miles || "0") || 0,
+        miles: optionalNumber(v.miles),
         fuel_cost_cents: toCents(v.fuel_cost || "0"),
         notes: v.notes ?? null,
       })
@@ -114,19 +105,13 @@ export default function EditEntryDialog({
                 className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                 {...register("platform")}
               >
-                {[
-                  "Uber",
-                  "Lyft",
-                  "DoorDash",
-                  "Instacart",
-                  "AmazonFlex",
-                  "Other",
-                ].map((p) => (
+                {PLATFORMS.map((p) => (
                   <option key={p} value={p}>
                     {p}
                   </option>
                 ))}
               </select>
+              {errors.platform && <FieldError message={errors.platform.message} />}
             </div>
 
             <div>
@@ -135,6 +120,7 @@ export default function EditEntryDialog({
                 className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                 {...register("miles")}
               />
+              {errors.miles && <FieldError message={errors.miles.message} />}
             </div>
 
             <div>
@@ -144,11 +130,7 @@ export default function EditEntryDialog({
                 className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                 {...register("started_at")}
               />
-              {errors.started_at && (
-                <p className="mt-1 text-xs text-red-500">
-                  {String(errors.started_at.message)}
-                </p>
-              )}
+              {errors.started_at && <FieldError message={errors.started_at.message} />}
             </div>
 
             <div>
@@ -158,11 +140,7 @@ export default function EditEntryDialog({
                 className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                 {...register("ended_at")}
               />
-              {errors.ended_at && (
-                <p className="mt-1 text-xs text-red-500">
-                  {String(errors.ended_at.message)}
-                </p>
-              )}
+              {errors.ended_at && <FieldError message={errors.ended_at.message} />}
             </div>
 
             <div>
@@ -171,11 +149,7 @@ export default function EditEntryDialog({
                 className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                 {...register("gross")}
               />
-              {errors.gross && (
-                <p className="mt-1 text-xs text-red-500">
-                  {String(errors.gross.message)}
-                </p>
-              )}
+              {errors.gross && <FieldError message={errors.gross.message} />}
             </div>
 
             <div>
@@ -184,6 +158,7 @@ export default function EditEntryDialog({
                 className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                 {...register("tips")}
               />
+              {errors.tips && <FieldError message={errors.tips.message} />}
             </div>
 
             <div>
@@ -192,6 +167,7 @@ export default function EditEntryDialog({
                 className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                 {...register("fuel_cost")}
               />
+              {errors.fuel_cost && <FieldError message={errors.fuel_cost.message} />}
             </div>
 
             <div className="sm:col-span-2">
@@ -201,6 +177,7 @@ export default function EditEntryDialog({
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                 {...register("notes")}
               />
+              {errors.notes && <FieldError message={errors.notes.message} />}
             </div>
           </div>
 
@@ -208,10 +185,16 @@ export default function EditEntryDialog({
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit">Save</Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Saving…" : "Save"}
+            </Button>
           </div>
         </form>
       </div>
     </div>
   );
+}
+
+function FieldError({ message }: { message?: string }) {
+  return message ? <p className="mt-1 text-xs text-red-500">{message}</p> : null;
 }

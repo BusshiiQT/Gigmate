@@ -14,6 +14,22 @@ function requireValidDate(value: Date, name: string): void {
   }
 }
 
+export function localDateTimeInputValue(value = new Date()): string {
+  requireValidDate(value, "value");
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}`;
+}
+
+export function utcIsoToLocalDateTimeInput(value: string): string {
+  return localDateTimeInputValue(new Date(value));
+}
+
+export function localDateTimeInputToUtcIso(value: string): string {
+  const date = new Date(value);
+  requireValidDate(date, "value");
+  return date.toISOString();
+}
+
 export function getStartOfLocalWeek(referenceDate: Date): Date {
   requireValidDate(referenceDate, "referenceDate");
 

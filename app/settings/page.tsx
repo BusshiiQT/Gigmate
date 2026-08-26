@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { settingsSchema } from "@/lib/validation";
 
 type SettingsRow = {
   id: string;
@@ -31,6 +32,10 @@ function SettingsClient() {
 
   const [mileageRate, setMileageRate] = useState<string>("67");
   const [taxRate, setTaxRate] = useState<string>("15.00");
+  const [errors, setErrors] = useState<{
+    mileageRate?: string;
+    taxRate?: string;
+  }>({});
 
   useEffect(() => {
     (async () => {
@@ -57,20 +62,33 @@ function SettingsClient() {
   }, [toast]);
 
   const save = async () => {
-    if (!row) return;
+    if (!row || saving) return;
+    const result = settingsSchema.safeParse({ mileageRate, taxRate });
+    if (!result.success) {
+      const fields = result.error.flatten().fieldErrors;
+      setErrors({
+        mileageRate: fields.mileageRate?.[0],
+        taxRate: fields.taxRate?.[0],
+      });
+      return;
+    }
+
+    setErrors({});
     setSaving(true);
-    const mileage_rate_cents = Math.round(Number(mileageRate) * 100);
-    const tax_rate_bps = Math.round(Number(taxRate) * 100);
+    try {
+      const mileage_rate_cents = Math.round(Number(result.data.mileageRate) * 100);
+      const tax_rate_bps = Math.round(Number(result.data.taxRate) * 100);
 
-    const { error } = await supabase
-      .from("settings")
-      .update({ mileage_rate_cents, tax_rate_bps })
-      .eq("id", row.id);
+      const { error } = await supabase
+        .from("settings")
+        .update({ mileage_rate_cents, tax_rate_bps })
+        .eq("id", row.id);
 
-    if (error) toast({ title: "Save failed", description: error.message });
-    else toast({ title: "Settings saved" });
-
-    setSaving(false);
+      if (error) toast({ title: "Save failed", description: error.message });
+      else toast({ title: "Settings saved" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -93,6 +111,9 @@ function SettingsClient() {
                   value={mileageRate}
                   onChange={(e) => setMileageRate(e.target.value)}
                 />
+                {errors.mileageRate && (
+                  <p className="mt-1 text-xs text-red-500">{errors.mileageRate}</p>
+                )}
               </div>
 
               <div>
@@ -105,6 +126,9 @@ function SettingsClient() {
                   value={taxRate}
                   onChange={(e) => setTaxRate(e.target.value)}
                 />
+                {errors.taxRate && (
+                  <p className="mt-1 text-xs text-red-500">{errors.taxRate}</p>
+                )}
               </div>
             </div>
 
