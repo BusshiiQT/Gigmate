@@ -77,12 +77,15 @@ export default async function RootLayout({
 
   return (
     <html lang="en" className={font.variable}>
-      <body className="min-h-screen bg-app dark:bg-[#0b0f14]">
+      <body
+        className={`${font.className} min-h-screen bg-background text-foreground`}
+      >
         <ThemeProvider>
           <ToastProvider>
-            <div className="absolute inset-x-0 top-0 -z-10 h-64 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-sky-100 via-white to-white dark:from-sky-900/20 dark:via-[#0b0f14] dark:to-[#0b0f14]" />
             <Header />
-            <div className="mx-auto max-w-5xl px-4 pb-24 pt-6">{children}</div>
+            <main className="app-shell-main mx-auto max-w-5xl px-4 pb-8 pt-6">
+              {children}
+            </main>
             <MobileTabBar />
           </ToastProvider>
         </ThemeProvider>
