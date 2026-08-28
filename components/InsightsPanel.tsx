@@ -14,6 +14,18 @@ import {
   isInHalfOpenRange,
 } from "@/lib/datetime";
 import { format } from "date-fns";
+import {
+  CalendarDays,
+  CircleDollarSign,
+  TrendingUp,
+  Trophy,
+} from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+} from "@/components/ui/card";
 
 type Scope = "week" | "all";
 
@@ -172,72 +184,98 @@ export default function InsightsPanel({
     }
   }
 
+  const insights = [
+    {
+      label: scope === "week" ? "Take-home this week" : "Take-home",
+      value: formatMoney(totals.estimatedTakeHomeCents),
+      detail:
+        totals.workedMilliseconds > 0
+          ? `${totals.workedHours.toFixed(1)} hrs · ${formatMoney(totals.estimatedHourlyRateCents)}/hr`
+          : "Estimated after fuel and tax reserve",
+      icon: CircleDollarSign,
+      tone: "text-foreground",
+    },
+    ...(bestDay
+      ? [
+          {
+            label: "Best earning day",
+            value: format(bestDay.date, "EEE, MMM d"),
+            detail: `${formatMoney(bestDay.estimatedTakeHomeCents)} take-home`,
+            icon: CalendarDays,
+            tone: "text-foreground",
+          },
+        ]
+      : []),
+    ...(scope === "week" && weekComparison
+      ? [
+          {
+            label: "Week-over-week",
+            value: `${weekComparison.differenceCents >= 0 ? "+" : ""}${formatMoney(weekComparison.differenceCents)}`,
+            detail:
+              weekComparison.percentage === null
+                ? "vs previous week"
+                : `${weekComparison.percentage >= 0 ? "+" : ""}${weekComparison.percentage.toFixed(1)}% vs previous week`,
+            icon: TrendingUp,
+            tone:
+              weekComparison.differenceCents >= 0
+                ? "text-emerald-700 dark:text-emerald-400"
+                : "text-destructive",
+          },
+        ]
+      : []),
+    ...(topPlatform
+      ? [
+          {
+            label: "Top platform this month",
+            value: topPlatform.platform,
+            detail: `${formatMoney(topPlatform.estimatedTakeHomeCents)} take-home`,
+            icon: Trophy,
+            tone: "text-foreground",
+          },
+        ]
+      : []),
+  ];
+
   return (
-    <section className="rounded-3xl border bg-slate-100/90 p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
-      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-        Insights
-      </h2>
-
-      <ul className="mt-3 space-y-1.5 text-slate-700 dark:text-slate-200">
-        <li>
-          <span className="font-medium">
-            Estimated take-home {scope === "week" ? "this week" : ""}:
-          </span>{" "}
-          {formatMoney(totals.estimatedTakeHomeCents)}{" "}
-          {totals.workedMilliseconds > 0 && (
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              ({totals.workedHours.toFixed(1)} hrs •{" "}
-              {formatMoney(totals.estimatedHourlyRateCents)} / hr)
-            </span>
+    <Card aria-labelledby="insights-heading">
+        <CardHeader className="pb-3">
+          <h2
+            id="insights-heading"
+            className="text-base font-semibold leading-none tracking-tight"
+          >
+            Insights
+          </h2>
+          <CardDescription>
+            A quick read on your latest financial performance.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+            {insights.map(({ label, value, detail, icon: Icon, tone }) => (
+              <div key={label} className="flex min-w-0 gap-3">
+                <span className="mt-0.5 rounded-lg bg-muted p-2 text-muted-foreground">
+                  <Icon aria-hidden="true" className="size-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {label}
+                  </p>
+                  <p className={`mt-1 truncate text-lg font-semibold tabular-nums ${tone}`}>
+                    {value}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {detail}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+          {analyticsUnavailable && (
+            <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">
+              Week-over-week and monthly insights are currently unavailable.
+            </p>
           )}
-        </li>
-
-        {bestDay && (
-          <li>
-            <span className="font-medium">Best earning day:</span>{" "}
-            {format(bestDay.date, "EEE MMM d")} —{" "}
-            {formatMoney(bestDay.estimatedTakeHomeCents)} estimated take-home.
-          </li>
-        )}
-
-        {scope === "week" && weekComparison && (
-          <li>
-            <span className="font-medium">Week-over-week change:</span>{" "}
-            {weekComparison.differenceCents >= 0 ? "+" : ""}
-            {formatMoney(weekComparison.differenceCents)}{" "}
-            {weekComparison.percentage !== null && (
-              <span
-                className={`text-xs ${
-                  weekComparison.percentage >= 0
-                    ? "text-green-600 dark:text-green-400"
-                    : "text-red-600 dark:text-red-400"
-                }`}
-              >
-                ({weekComparison.percentage.toFixed(1)}%)
-              </span>
-            )}
-          </li>
-        )}
-
-        {topPlatform && (
-          <li>
-            <span className="font-medium">Top platform this month:</span>{" "}
-            {topPlatform.platform} (
-            {formatMoney(topPlatform.estimatedTakeHomeCents)})
-          </li>
-        )}
-
-        {analyticsUnavailable && (
-          <li className="text-slate-600 dark:text-slate-400">
-            Week-over-week and monthly insights are currently unavailable.
-          </li>
-        )}
-
-        {/* GENERAL TIP */}
-        <li className="pt-1 text-slate-600 dark:text-slate-400">
-          Compare platforms on your high-profit days to see where your hourly is strongest.
-        </li>
-      </ul>
-    </section>
+        </CardContent>
+    </Card>
   );
 }

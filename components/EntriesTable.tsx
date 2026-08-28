@@ -1,22 +1,51 @@
 "use client";
 
 import * as React from "react";
-import type { EntryRow } from "@/lib/types";
-import { formatCurrency, durationHours } from "@/lib/utils";
+import Link from "next/link";
+import { Clock3, Pencil, Plus, Route, Trash2 } from "lucide-react";
+
+import type { EntryRow, SettingsRow } from "@/lib/types";
+import { calculateEntry } from "@/lib/finance";
+import { durationHours, formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/components/ui/use-toast";
 import EditEntryDialog from "@/components/EditEntryDialog";
 import EmptyState from "@/components/EmptyState";
-import Link from "next/link";
+
+type EntriesTableProps = {
+  entries: EntryRow[];
+  settings: SettingsRow | null;
+  onChanged?: () => void;
+};
+
+function getEntryTakeHome(entry: EntryRow, settings: SettingsRow) {
+  return calculateEntry({
+    grossCents: entry.gross_cents,
+    tipsCents: entry.tips_cents,
+    fuelCostCents: entry.fuel_cost_cents,
+    miles: Number(entry.miles),
+    mileageRateCents: settings.mileage_rate_cents,
+    taxRateBps: settings.tax_rate_bps,
+    startedAtMilliseconds: new Date(entry.started_at).getTime(),
+    endedAtMilliseconds: new Date(entry.ended_at).getTime(),
+  }).estimatedTakeHomeCents;
+}
+
+function formatEntryDate(value: string) {
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 export default function EntriesTable({
   entries,
+  settings,
   onChanged,
-}: {
-  entries: EntryRow[];
-  onChanged?: () => void;
-}) {
+}: EntriesTableProps) {
   const { toast } = useToast();
   const [editing, setEditing] = React.useState<EntryRow | null>(null);
   const [busyId, setBusyId] = React.useState<string | null>(null);
@@ -37,133 +66,83 @@ export default function EntriesTable({
   if (entries.length === 0) {
     return (
       <EmptyState
-        emoji="🗓️"
         title="No entries in this view"
-        hint="Add your first entry to see stats and weekly net profit."
-        cta={
-          <Link href="/entries/new">
-            <Button>+ Add your first entry</Button>
-          </Link>
-        }
+        hint="Add a gig session to see earnings, costs, and take-home here."
+        cta={<Link href="/entries/new"><Button><Plus aria-hidden="true" className="size-4" />Add your first entry</Button></Link>}
       />
     );
   }
 
   return (
-    <>
-      {/* Mobile cards */}
-      <div className="grid gap-3 sm:hidden">
-        {entries.map((e) => (
-          <div key={e.id} className="card p-3">
-            <div className="flex justify-between">
-              <div className="font-medium text-gray-900 dark:text-white">
-                {new Date(e.started_at).toLocaleDateString()} • {e.platform}
-              </div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                {durationHours(e.started_at, e.ended_at).toFixed(2)}h
-              </div>
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-              <div className="text-gray-700 dark:text-gray-300">
-                Miles: {Number(e.miles ?? 0).toFixed(2)}
-              </div>
-              <div className="text-right text-gray-900 dark:text-white">
-                Gross: {formatCurrency(e.gross_cents)}
-              </div>
-              <div className="text-right text-gray-900 dark:text-white">
-                Tips: {formatCurrency(e.tips_cents)}
-              </div>
-              <div className="text-right text-gray-900 dark:text-white">
-                Fuel: {formatCurrency(e.fuel_cost_cents)}
-              </div>
-            </div>
-            {e.notes && (
-              <div className="mt-2 text-sm text-gray-700 dark:text-gray-300">
-                {e.notes}
-              </div>
-            )}
-            <div className="mt-3 flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setEditing(e)}>
-                Edit
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => onDelete(e.id)}
-                disabled={busyId === e.id}
-              >
-                {busyId === e.id ? "Deleting..." : "Delete"}
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Desktop table */}
-      <div className="hidden overflow-x-auto rounded-lg border bg-white dark:border-white/10 dark:bg-[#0f141a] sm:block">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600 dark:bg-[#0b0f14] dark:text-gray-300">
-            <tr>
-              <th className="px-3 py-2 text-left">Date</th>
-              <th className="px-3 py-2 text-left">Platform</th>
-              <th className="px-3 py-2 text-left">Hours</th>
-              <th className="px-3 py-2 text-right">Miles</th>
-              <th className="px-3 py-2 text-right">Gross</th>
-              <th className="px-3 py-2 text-right">Tips</th>
-              <th className="px-3 py-2 text-right">Fuel</th>
-              <th className="px-3 py-2 text-left">Notes</th>
-              <th className="px-3 py-2 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="text-gray-900 dark:text-gray-100">
-            {entries.map((e) => (
-              <tr key={e.id} className="border-t dark:border-white/10">
-                <td className="px-3 py-2">
-                  {new Date(e.started_at).toLocaleDateString()}
-                </td>
-                <td className="px-3 py-2">{e.platform}</td>
-                <td className="px-3 py-2">
-                  {durationHours(e.started_at, e.ended_at).toFixed(2)}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  {Number(e.miles ?? 0).toFixed(2)}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  {formatCurrency(e.gross_cents)}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  {formatCurrency(e.tips_cents)}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  {formatCurrency(e.fuel_cost_cents)}
-                </td>
-                <td className="px-3 py-2">{e.notes ?? ""}</td>
-                <td className="px-3 py-2">
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => setEditing(e)}>
-                      Edit
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => onDelete(e.id)}
-                      disabled={busyId === e.id}
-                    >
-                      {busyId === e.id ? "Deleting..." : "Delete"}
-                    </Button>
+    <section aria-labelledby="recent-activity-heading">
+      <Card>
+        <CardHeader className="pb-3">
+          <h2
+            id="recent-activity-heading"
+            className="text-base font-semibold leading-none tracking-tight"
+          >
+            Recent activity
+          </h2>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:hidden">
+            {entries.map((entry) => {
+              const takeHome = settings ? getEntryTakeHome(entry, settings) : null;
+              return (
+                <article key={entry.id} className="rounded-lg border border-border bg-muted/20 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="truncate font-semibold">{entry.platform}</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">{formatEntryDate(entry.started_at)}</p>
+                    </div>
+                    {takeHome !== null && <div className="text-right"><p className="font-semibold tabular-nums">{formatCurrency(takeHome)}</p><p className="text-xs text-muted-foreground">take-home</p></div>}
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5"><Clock3 aria-hidden="true" className="size-3.5" />{durationHours(entry.started_at, entry.ended_at).toFixed(1)} hr</span>
+                    <span className="inline-flex items-center gap-1.5"><Route aria-hidden="true" className="size-3.5" />{Number(entry.miles ?? 0).toFixed(1)} mi</span>
+                  </div>
+                  <dl className="mt-3 grid grid-cols-3 gap-3 border-y py-3 text-sm">
+                    <div><dt className="text-xs text-muted-foreground">Gross</dt><dd className="mt-1 font-medium tabular-nums">{formatCurrency(entry.gross_cents)}</dd></div>
+                    <div><dt className="text-xs text-muted-foreground">Tips</dt><dd className="mt-1 font-medium tabular-nums">{formatCurrency(entry.tips_cents)}</dd></div>
+                    <div><dt className="text-xs text-muted-foreground">Fuel</dt><dd className="mt-1 font-medium tabular-nums">{formatCurrency(entry.fuel_cost_cents)}</dd></div>
+                  </dl>
+                  {entry.notes && <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{entry.notes}</p>}
+                  <div className="mt-3 flex justify-end gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => setEditing(entry)}><Pencil aria-hidden="true" className="size-4" />Edit</Button>
+                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => onDelete(entry.id)} disabled={busyId === entry.id}><Trash2 aria-hidden="true" className="size-4" />{busyId === entry.id ? "Deleting..." : "Delete"}</Button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
 
-      {editing && (
-        <EditEntryDialog
-          entry={editing}
-          onClose={() => setEditing(null)}
-          onSaved={() => onChanged?.()}
-        />
-      )}
-    </>
+          <div className="hidden md:block">
+            <table className="w-full table-fixed text-sm">
+              <thead className="border-b text-xs text-muted-foreground"><tr>
+                <th className="w-[25%] pb-3 text-left font-medium">Session</th><th className="w-[17%] pb-3 text-left font-medium">Work</th><th className="w-[19%] pb-3 text-right font-medium">Earnings</th><th className="w-[12%] pb-3 text-right font-medium">Fuel</th><th className="w-[17%] pb-3 text-right font-medium">Take-home</th><th className="w-[10%] pb-3 text-right font-medium"><span className="sr-only">Actions</span></th>
+              </tr></thead>
+              <tbody className="divide-y divide-border">
+                {entries.map((entry) => {
+                  const takeHome = settings ? getEntryTakeHome(entry, settings) : null;
+                  const date = formatEntryDate(entry.started_at);
+                  return <tr key={entry.id}>
+                    <td className="py-3 pr-3 align-top"><p className="font-medium">{entry.platform}</p><p className="mt-0.5 text-xs text-muted-foreground">{date}</p>{entry.notes && <p className="mt-1 truncate text-xs text-muted-foreground">{entry.notes}</p>}</td>
+                    <td className="py-3 pr-3 align-top text-muted-foreground"><p>{durationHours(entry.started_at, entry.ended_at).toFixed(1)} hr</p><p className="mt-0.5 text-xs">{Number(entry.miles ?? 0).toFixed(1)} mi</p></td>
+                    <td className="py-3 pr-3 text-right align-top tabular-nums"><p className="font-medium">{formatCurrency(entry.gross_cents)}</p><p className="mt-0.5 text-xs text-muted-foreground">+{formatCurrency(entry.tips_cents)} tips</p></td>
+                    <td className="py-3 pr-3 text-right align-top text-muted-foreground tabular-nums">{formatCurrency(entry.fuel_cost_cents)}</td>
+                    <td className="py-3 pr-3 text-right align-top font-semibold tabular-nums">{takeHome === null ? "—" : formatCurrency(takeHome)}</td>
+                    <td className="py-3 align-top"><div className="flex justify-end gap-1">
+                      <Button variant="ghost" size="icon" aria-label={`Edit ${entry.platform} entry from ${date}`} onClick={() => setEditing(entry)}><Pencil aria-hidden="true" className="size-4" /></Button>
+                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" aria-label={`${busyId === entry.id ? "Deleting" : "Delete"} ${entry.platform} entry from ${date}`} onClick={() => onDelete(entry.id)} disabled={busyId === entry.id}><Trash2 aria-hidden="true" className="size-4" /></Button>
+                    </div></td>
+                  </tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+      {editing && <EditEntryDialog entry={editing} onClose={() => setEditing(null)} onSaved={() => onChanged?.()} />}
+    </section>
   );
 }

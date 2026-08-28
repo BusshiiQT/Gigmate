@@ -10,6 +10,13 @@ import {
   getRecentLocalDaysRange,
   isInHalfOpenRange,
 } from "@/lib/datetime";
+import { CalendarClock, CalendarDays, Trophy } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+} from "@/components/ui/card";
 
 export type PatternEntry = Pick<
   EntryRow,
@@ -70,9 +77,11 @@ export default function PatternInsights({
 }: PatternInsightsProps) {
   if (unavailable) {
     return (
-      <section className="rounded-3xl border bg-slate-100/90 p-4 text-sm text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 sm:p-5">
-        Pattern insights are currently unavailable.
-      </section>
+      <Card>
+        <CardContent className="p-5 text-sm text-muted-foreground">
+          Pattern insights are currently unavailable.
+        </CardContent>
+      </Card>
     );
   }
 
@@ -203,42 +212,49 @@ export default function PatternInsights({
 
   if (!bestDay && !bestTime && !bestWeekendPlatform) return null;
 
+  const patterns = [
+    ...(bestDay
+      ? [{ label: "Best day", value: bestDay.label, detail: `${formatMoney(bestDay.hourlyCents)}/hr`, icon: CalendarDays }]
+      : []),
+    ...(bestTime
+      ? [{ label: "Best time", value: bestTime.label, detail: `${formatMoney(bestTime.hourlyCents)}/hr average`, icon: CalendarClock }]
+      : []),
+    ...(bestWeekendPlatform
+      ? [{ label: "Weekend standout", value: bestWeekendPlatform.platform, detail: `${formatMoney(bestWeekendPlatform.hourlyCents)}/hr over ${bestWeekendPlatform.hours.toFixed(1)} hrs`, icon: Trophy }]
+      : []),
+  ];
+
   return (
-    <section className="rounded-3xl border bg-slate-100/90 p-4 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
-      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-        Patterns (last 30 days)
-      </h2>
-
-      <ul className="mt-3 space-y-1.5 text-slate-700 dark:text-slate-200">
-        {bestDay && (
-          <li>
-            <span className="font-medium">Best day for hourly:</span>{" "}
-            {bestDay.label} with {formatMoney(bestDay.hourlyCents)}/hr.
-          </li>
-        )}
-
-        {bestTime && (
-          <li>
-            <span className="font-medium">Best time window:</span>{" "}
-            {bestTime.label} — around {formatMoney(bestTime.hourlyCents)}/hr on
-            average.
-          </li>
-        )}
-
-        {bestWeekendPlatform && (
-          <li>
-            <span className="font-medium">Weekend standout:</span>{" "}
-            {bestWeekendPlatform.platform} on Sat/Sun, about{" "}
-            {formatMoney(bestWeekendPlatform.hourlyCents)}/hr over{" "}
-            {bestWeekendPlatform.hours.toFixed(1)} hrs.
-          </li>
-        )}
-
-        <li className="pt-1 text-slate-600 dark:text-slate-400">
-          Use these patterns to plan your next week: lean into the days, times,
-          and apps where your hourly is strongest.
-        </li>
-      </ul>
-    </section>
+    <Card aria-labelledby="patterns-heading">
+        <CardHeader className="pb-3">
+          <h2
+            id="patterns-heading"
+            className="text-base font-semibold leading-none tracking-tight"
+          >
+            Patterns
+          </h2>
+          <CardDescription>Based on your last 30 days.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {patterns.map(({ label, value, detail, icon: Icon }) => (
+              <div key={label} className="flex min-w-0 gap-3">
+                <span className="mt-0.5 rounded-lg bg-blue-50 p-2 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                  <Icon aria-hidden="true" className="size-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-muted-foreground">{label}</p>
+                  <p className="mt-1 font-semibold">{value}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">{detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="mt-4 border-t pt-3 text-sm text-muted-foreground">
+            Use these patterns to plan your next week: lean into the days,
+            times, and apps where your hourly is strongest.
+          </p>
+        </CardContent>
+    </Card>
   );
 }

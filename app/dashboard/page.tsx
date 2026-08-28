@@ -3,6 +3,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  Calculator,
+  Camera,
+  Download,
+  Fuel,
+  Landmark,
+  Plus,
+  Route,
+} from "lucide-react";
 import PatternInsights from "@/components/PatternInsights";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +19,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/components/ui/use-toast";
 import AuthGate from "@/components/AuthGate";
 import EntriesTable from "@/components/EntriesTable";
+import EmptyState from "@/components/EmptyState";
 import StatsCards from "@/components/StatsCards";
 import WeeklyNetChart, {
   ChartMode,
@@ -19,6 +29,14 @@ import InsightsPanel, {
   type InsightEntry,
 } from "@/components/InsightsPanel";
 import { DashboardSkeleton } from "@/components/SkeletonBlocks";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { formatCurrency } from "@/lib/utils";
 
 import type { EntryRow, SettingsRow } from "@/lib/types";
 import { aggregateCalculations, calculateEntry } from "@/lib/finance";
@@ -269,125 +287,196 @@ function DashboardClient() {
   };
 
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-5 p-4 pb-8 sm:p-6 md:p-8">
+    <main className="mx-auto flex max-w-5xl flex-col gap-5 p-4 pb-24 sm:gap-6 sm:p-6 sm:pb-8 md:p-8">
       {loading ? (
         <DashboardSkeleton />
       ) : (
         <>
           {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-                Dashboard
-              </h1>
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                Track your true profit across platforms and weeks.
-              </p>
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+                  Dashboard
+                </h1>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  Your earnings command center.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleExport}
+                  disabled={exporting}
+                >
+                  <Download aria-hidden="true" className="size-4" />
+                  {exporting ? "Exporting..." : "Export CSV"}
+                </Button>
+                <Link href="/screenshots">
+                  <Button variant="ghost">
+                    <Camera aria-hidden="true" className="size-4" />
+                    Screenshots
+                  </Button>
+                </Link>
+                <Link href="/entries/new">
+                  <Button>
+                    <Plus aria-hidden="true" className="size-4" />
+                    New Entry
+                  </Button>
+                </Link>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={handleExport}
-                disabled={exporting}
+            <div className="flex items-center gap-3 border-t pt-3">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                View
+              </span>
+              <div
+                className="inline-flex rounded-lg border bg-slate-50 p-1 dark:bg-slate-900"
+                role="group"
+                aria-label="Dashboard scope"
               >
-                {exporting ? "Exporting..." : "Export CSV"}
-              </Button>
-              <Link href="/screenshots">
-                <Button variant="outline">Screenshots</Button>
-              </Link>
-              <Button
-                variant={scope === "week" ? "default" : "outline"}
-                onClick={() => handleScopeChange("week")}
-              >
-                This week
-              </Button>
-              <Button
-                variant={scope === "all" ? "default" : "outline"}
-                onClick={() => handleScopeChange("all")}
-              >
-                All entries
-              </Button>
-              <Link href="/entries/new">
-                <Button>+ New Entry</Button>
-              </Link>
+                <button
+                  type="button"
+                  aria-pressed={scope === "week"}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                    scope === "week"
+                      ? "bg-white text-slate-950 shadow-sm dark:bg-slate-800 dark:text-white"
+                      : "text-slate-600 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"
+                  }`}
+                  onClick={() => handleScopeChange("week")}
+                >
+                  This week
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={scope === "all"}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                    scope === "all"
+                      ? "bg-white text-slate-950 shadow-sm dark:bg-slate-800 dark:text-white"
+                      : "text-slate-600 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"
+                  }`}
+                  onClick={() => handleScopeChange("all")}
+                >
+                  All entries
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Empty */}
           {entries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed bg-slate-100/90 p-10 text-center text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-              <div className="mb-3 text-4xl">🚗</div>
-              <p className="font-medium">No entries yet</p>
-              <p className="mt-1 text-sm">
-                Start by adding your first shift or batch. We&apos;ll crunch the
-                numbers for you.
-              </p>
-              <Link href="/entries/new" className="mt-4">
-                <Button size="sm">Add your first entry</Button>
-              </Link>
-            </div>
+            <EmptyState
+              title="No earnings yet"
+              hint="Add your first gig session to see your true take-home, hourly rate, tax reserve, and profit trends."
+              cta={
+                <Link href="/entries/new">
+                  <Button>
+                    <Plus aria-hidden="true" className="size-4" />
+                    Add your first entry
+                  </Button>
+                </Link>
+              }
+            />
           ) : (
             <>
               {/* Stats summary */}
               {settings && (
                 <StatsCards
+                  scopeLabel={scope === "week" ? "This week" : "All entries"}
                   totalEarningsCents={stats.totalEarningsCents}
                   cashProfitCents={stats.cashProfitCents}
-                  mileageDeductionCents={stats.mileageDeductionCents}
                   estimatedTaxReserveCents={stats.estimatedTaxReserveCents}
                   estimatedTakeHomeCents={stats.estimatedTakeHomeCents}
                   estimatedHourlyRateCents={stats.estimatedHourlyRateCents}
+                  workedHours={stats.workedHours}
                 />
               )}
 
-              {/* Chart */}
+              {/* Analytics */}
               {settings && (
-                <>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                      Profit trend
-                    </p>
-                    <div className="inline-flex rounded-full bg-slate-100 p-1 text-xs dark:bg-slate-800">
-                      <button
-                        className={`rounded-full px-3 py-1 ${
-                          chartMode === "day"
-                            ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-50"
-                            : "text-slate-600 dark:text-slate-300"
-                        }`}
-                        onClick={() => setChartMode("day")}
-                      >
-                        Daily
-                      </button>
-                      <button
-                        className={`rounded-full px-3 py-1 ${
-                          chartMode === "week"
-                            ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-50"
-                            : "text-slate-600 dark:text-slate-300"
-                        }`}
-                        onClick={() => setChartMode("week")}
-                      >
-                        Weekly
-                      </button>
-                      <button
-                        className={`rounded-full px-3 py-1 ${
-                          chartMode === "month"
-                            ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-50"
-                            : "text-slate-600 dark:text-slate-300"
-                        }`}
-                        onClick={() => setChartMode("month")}
-                      >
-                        Monthly
-                      </button>
-                    </div>
+                <section
+                  aria-labelledby="analytics-heading"
+                  className="space-y-3"
+                >
+                  <h2 id="analytics-heading" className="sr-only">
+                    Analytics
+                  </h2>
+                  <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)]">
+                    <WeeklyNetChart
+                      chartEntries={chartEntries}
+                      unavailable={chartUnavailable}
+                      settings={settings}
+                      mode={chartMode}
+                      onModeChange={setChartMode}
+                    />
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle>Financial breakdown</CardTitle>
+                        <CardDescription>
+                          How your take-home estimate is built.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="divide-y divide-border">
+                        {[
+                          {
+                            label: "Fuel cost",
+                            value: `-${formatCurrency(stats.fuelCostCents)}`,
+                            note: "Actual cash expense",
+                            Icon: Fuel,
+                            tone: "text-foreground",
+                          },
+                          {
+                            label: "Mileage deduction",
+                            value: formatCurrency(stats.mileageDeductionCents),
+                            note: "Tax deduction, not cash spent",
+                            Icon: Route,
+                            tone: "text-blue-700 dark:text-blue-300",
+                          },
+                          {
+                            label: "Estimated taxable profit",
+                            value: formatCurrency(
+                              stats.estimatedTaxableProfitCents
+                            ),
+                            note: "Intermediate tax estimate",
+                            Icon: Calculator,
+                            tone: "text-foreground",
+                          },
+                          {
+                            label: "Tax reserve",
+                            value: `-${formatCurrency(
+                              stats.estimatedTaxReserveCents
+                            )}`,
+                            note: "Set aside for estimated taxes",
+                            Icon: Landmark,
+                            tone: "text-foreground",
+                          },
+                        ].map(({ label, value, note, Icon, tone }) => (
+                          <div
+                            key={label}
+                            className="flex items-start gap-3 py-3 first:pt-0 last:pb-0"
+                          >
+                            <span className="mt-0.5 rounded-md bg-muted p-2 text-muted-foreground">
+                              <Icon aria-hidden="true" className="size-4" />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                                <p className="text-sm font-medium">{label}</p>
+                                <p
+                                  className={`font-semibold tabular-nums ${tone}`}
+                                >
+                                  {value}
+                                </p>
+                              </div>
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                {note}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
                   </div>
-
-                  <WeeklyNetChart
-                    chartEntries={chartEntries}
-                    unavailable={chartUnavailable}
-                    settings={settings}
-                    mode={chartMode}
-                  />
-                </>
+                </section>
               )}
 
               {/* Insights */}
@@ -407,7 +496,11 @@ function DashboardClient() {
               />
 
               {/* Table */}
-              <EntriesTable entries={entries} onChanged={fetchAll} />
+              <EntriesTable
+                entries={entries}
+                settings={settings}
+                onChanged={fetchAll}
+              />
             </>
           )}
         </>

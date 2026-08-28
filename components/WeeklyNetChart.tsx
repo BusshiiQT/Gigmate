@@ -4,10 +4,12 @@ import { useMemo } from "react";
 import {
   Bar,
   BarChart,
+  CartesianGrid,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
+  type TooltipContentProps,
 } from "recharts";
 import { addDays, format } from "date-fns";
 import type { EntryRow, SettingsRow } from "@/lib/types";
@@ -25,6 +27,13 @@ import {
   isInHalfOpenRange,
   type DateRange,
 } from "@/lib/datetime";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 export type ChartMode = "day" | "week" | "month";
 
@@ -43,6 +52,7 @@ interface WeeklyNetChartProps {
   unavailable: boolean;
   settings: SettingsRow;
   mode: ChartMode;
+  onModeChange: (mode: ChartMode) => void;
 }
 
 type PendingBucket = {
@@ -67,6 +77,25 @@ function formatMoney(cents: number) {
     currency: "USD",
     maximumFractionDigits: 2,
   });
+}
+
+function TakeHomeTooltip({
+  active,
+  label,
+  payload,
+}: TooltipContentProps<number, string>) {
+  if (!active || !payload?.length) return null;
+
+  const value = payload[0]?.value;
+  if (typeof value !== "number") return null;
+
+  return (
+    <div className="rounded-md border border-border bg-popover px-2.5 py-2 text-xs text-popover-foreground shadow-md">
+      <p className="mb-1 font-medium">{String(label)}</p>
+      <p className="text-muted-foreground">Estimated take-home</p>
+      <p className="font-semibold tabular-nums">{formatMoney(value)}</p>
+    </div>
+  );
 }
 
 function calculateChartEntry(entry: ChartEntry, settings: SettingsRow) {
@@ -102,6 +131,7 @@ export default function WeeklyNetChart({
   unavailable,
   settings,
   mode,
+  onModeChange,
 }: WeeklyNetChartProps) {
   const data = useMemo(() => {
     if (!chartEntries.length) return [] as Bucket[];
@@ -183,91 +213,105 @@ export default function WeeklyNetChart({
     return finalizeBuckets(buckets);
   }, [chartEntries, settings, mode]);
 
-  if (unavailable) {
-    return (
-      <section className="rounded-3xl border bg-slate-100/90 p-4 text-sm text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 sm:p-5">
-        Chart data is currently unavailable.
-      </section>
-    );
-  }
-
-  if (!data.length) {
-    return (
-      <section className="rounded-3xl border bg-slate-100/90 p-4 text-sm text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 sm:p-5">
-        No data yet for this view. Add some entries or adjust your filters.
-      </section>
-    );
-  }
-
   return (
-    <section className="rounded-3xl border bg-slate-100/90 p-4 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900 sm:p-5">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-            Estimated take-home over time
-          </p>
-          <p className="text-xs text-slate-600 dark:text-slate-300">
-            Bars show earnings after fuel and your estimated tax reserve.
-            Mileage affects the taxable estimate, not cash profit.
-          </p>
+    <Card className="min-w-0">
+      <CardHeader className="gap-4 pb-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1.5">
+          <CardTitle>Profit trend</CardTitle>
+          <CardDescription>
+            Estimated take-home after fuel and your estimated tax reserve.
+          </CardDescription>
         </div>
-      </div>
+        <div
+          className="grid shrink-0 grid-cols-3 rounded-lg border border-border bg-muted p-1"
+          role="group"
+          aria-label="Profit trend period"
+        >
+          {(["day", "week", "month"] as const).map((period) => (
+            <button
+              key={period}
+              type="button"
+              aria-pressed={mode === period}
+              onClick={() => onModeChange(period)}
+              className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-3 ${
+                mode === period
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {period === "day"
+                ? "Daily"
+                : period === "week"
+                  ? "Weekly"
+                  : "Monthly"}
+            </button>
+          ))}
+        </div>
+      </CardHeader>
 
-      <div
-        className="h-64"
-        role="img"
-        aria-label={`Bar chart of estimated take-home by ${mode}`}
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            data={data}
-            margin={{ top: 10, right: 16, left: 0, bottom: 4 }}
-            barSize={32}
-            barCategoryGap={24}
+      <CardContent className="pt-0">
+        {unavailable || !data.length ? (
+          <div className="flex h-64 items-center justify-center rounded-lg border border-dashed border-border bg-muted/30 px-6 text-center text-sm text-muted-foreground">
+            {unavailable
+              ? "Chart data is currently unavailable."
+              : "No data yet for this view. Add entries to see your trend."}
+          </div>
+        ) : (
+          <div
+            className="h-64 w-full sm:h-72"
+            role="img"
+            aria-label={`Bar chart of estimated take-home by ${mode}`}
           >
-            <XAxis
-              dataKey="label"
-              tick={{ fontSize: 11, fill: "#64748b" }}
-              tickLine={false}
-              axisLine={{ stroke: "rgba(148,163,184,0.5)" }}
-            />
-            <YAxis
-              tickFormatter={(value: number) =>
-                `$${(value / 100).toFixed(0)}`
-              }
-              tick={{ fontSize: 11, fill: "#64748b" }}
-              tickLine={false}
-              axisLine={{ stroke: "rgba(148,163,184,0.5)" }}
-              domain={[
-                (dataMin: number) => (dataMin < 0 ? dataMin * 1.1 : 0),
-                (dataMax: number) => (dataMax > 0 ? dataMax * 1.1 : 0),
-              ]}
-            />
-            <Tooltip
-              cursor={{ fill: "rgba(148,163,184,0.12)" }}
-              formatter={(value) => [
-                typeof value === "number" ? formatMoney(value) : String(value),
-                "Estimated take-home",
-              ]}
-              labelFormatter={(label) => String(label)}
-              contentStyle={{
-                borderRadius: 12,
-                border: "1px solid rgba(148,163,184,0.5)",
-                fontSize: 12,
-                backgroundColor: "#020617",
-                color: "#e5e7eb",
-              }}
-            />
-            <Bar
-              dataKey="estimated_take_home_cents"
-              name="Estimated take-home"
-              fill="#0ea5e9"
-              radius={[8, 8, 4, 4]}
-              maxBarSize={40}
-            />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </section>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={data}
+                margin={{ top: 12, right: 4, left: -12, bottom: 0 }}
+                barCategoryGap="28%"
+              >
+                <CartesianGrid
+                  vertical={false}
+                  stroke="hsl(var(--border))"
+                  strokeDasharray="3 3"
+                />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={12}
+                />
+                <YAxis
+                  tickFormatter={(value: number) =>
+                    `$${(value / 100).toFixed(0)}`
+                  }
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={54}
+                  domain={[
+                    (dataMin: number) => (dataMin < 0 ? dataMin * 1.1 : 0),
+                    (dataMax: number) => (dataMax > 0 ? dataMax * 1.1 : 0),
+                  ]}
+                />
+                <Tooltip
+                  cursor={{ fill: "hsl(var(--muted) / 0.35)" }}
+                  content={TakeHomeTooltip}
+                  allowEscapeViewBox={{ x: false, y: false }}
+                  offset={10}
+                  wrapperStyle={{ zIndex: 10, pointerEvents: "none" }}
+                />
+                <Bar
+                  dataKey="estimated_take_home_cents"
+                  name="Estimated take-home"
+                  fill="hsl(var(--primary))"
+                  radius={[6, 6, 2, 2]}
+                  maxBarSize={34}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
