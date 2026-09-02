@@ -5,6 +5,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { FormField } from "@/components/ui/form-field";
+import { Card, CardContent } from "@/components/ui/card";
+import { Save } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -102,16 +107,15 @@ export default function EntryForm({
   };
 
   return (
-    <form className="card space-y-3" onSubmit={handleSubmit(onSubmit)}>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {/* Platform (native select) */}
-        <div>
-          <label className="block text-sm text-gray-600 dark:text-gray-300">
-            Platform
-          </label>
-          <select
-            className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-white dark:bg-slate-900 dark:border-slate-700"
-            defaultValue={initialValues?.platform ?? "Uber"}
+    <Card className="overflow-hidden">
+      <CardContent className="p-5 sm:p-6">
+      <form className="space-y-7" onSubmit={handleSubmit(onSubmit)} noValidate>
+        <FormSection title="Platform">
+          <FormField htmlFor="platform" label="Platform" error={formState.errors.platform?.message}>
+          <Select
+            id="platform"
+            aria-invalid={Boolean(formState.errors.platform)}
+            aria-describedby={formState.errors.platform ? "platform-error" : undefined}
             {...register("platform")}
           >
             {PLATFORMS.map((platform) => (
@@ -119,100 +123,108 @@ export default function EntryForm({
                 {platform === "AmazonFlex" ? "Amazon Flex" : platform}
               </option>
             ))}
-          </select>
-          {formState.errors.platform && <FieldError message={formState.errors.platform.message} />}
-        </div>
+          </Select>
+          </FormField>
+        </FormSection>
 
-        <div>
-          <label className="block text-sm text-gray-600 dark:text-gray-300">
-            Gross ($)
-          </label>
+        <FormSection title="Earnings">
+          <div className="grid gap-4 sm:grid-cols-2">
+          <FormField htmlFor="gross" label="Gross earnings" description="Before tips and expenses." error={formState.errors.gross?.message}>
           <Input
+            id="gross"
             type="number"
             step="0.01"
             placeholder="0.00"
+            aria-invalid={Boolean(formState.errors.gross)}
+            aria-describedby={formState.errors.gross ? "gross-error" : "gross-description"}
             {...register("gross")}
           />
-          {formState.errors.gross && <FieldError message={formState.errors.gross.message} />}
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-600 dark:text-gray-300">
-            Tips ($)
-          </label>
+          </FormField>
+          <FormField htmlFor="tips" label="Tips" description="Cash or in-app tips." error={formState.errors.tips?.message}>
           <Input
+            id="tips"
             type="number"
             step="0.01"
             placeholder="0.00"
+            aria-invalid={Boolean(formState.errors.tips)}
+            aria-describedby={formState.errors.tips ? "tips-error" : "tips-description"}
             {...register("tips")}
           />
-          {formState.errors.tips && <FieldError message={formState.errors.tips.message} />}
-        </div>
+          </FormField>
+          </div>
+        </FormSection>
 
-        <div>
-          <label className="block text-sm text-gray-600 dark:text-gray-300">
-            Fuel cost ($)
-          </label>
+        <FormSection title="Expenses & mileage">
+          <div className="grid gap-4 sm:grid-cols-2">
+          <FormField htmlFor="fuel_cost" label="Fuel cost" description="Actual cash spent on fuel." error={formState.errors.fuel_cost?.message}>
           <Input
+            id="fuel_cost"
             type="number"
             step="0.01"
             placeholder="0.00"
+            aria-invalid={Boolean(formState.errors.fuel_cost)}
+            aria-describedby={formState.errors.fuel_cost ? "fuel_cost-error" : "fuel_cost-description"}
             {...register("fuel_cost")}
           />
-          {formState.errors.fuel_cost && <FieldError message={formState.errors.fuel_cost.message} />}
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-600 dark:text-gray-300">
-            Miles
-          </label>
+          </FormField>
+          <FormField htmlFor="miles" label="Miles driven" description="Business miles for this session." error={formState.errors.miles?.message}>
           <Input
+            id="miles"
             type="number"
             step="0.01"
             placeholder="0.00"
+            aria-invalid={Boolean(formState.errors.miles)}
+            aria-describedby={formState.errors.miles ? "miles-error" : "miles-description"}
             {...register("miles")}
           />
-          {formState.errors.miles && <FieldError message={formState.errors.miles.message} />}
-        </div>
+          </FormField>
+          </div>
+        </FormSection>
 
-        <div>
-          <label className="block text-sm text-gray-600 dark:text-gray-300">
-            Start
-          </label>
-          <Input type="datetime-local" {...register("started_at")} />
-          {formState.errors.started_at && <FieldError message={formState.errors.started_at.message} />}
-        </div>
+        <FormSection title="Session time">
+          <div className="grid gap-4 sm:grid-cols-2">
+          <FormField htmlFor="started_at" label="Start" error={formState.errors.started_at?.message}>
+          <Input id="started_at" type="datetime-local" aria-invalid={Boolean(formState.errors.started_at)} aria-describedby={formState.errors.started_at ? "started_at-error" : undefined} {...register("started_at")} />
+          </FormField>
+          <FormField htmlFor="ended_at" label="End" error={formState.errors.ended_at?.message}>
+          <Input id="ended_at" type="datetime-local" aria-invalid={Boolean(formState.errors.ended_at)} aria-describedby={formState.errors.ended_at ? "ended_at-error" : undefined} {...register("ended_at")} />
+          </FormField>
+          </div>
+        </FormSection>
 
-        <div>
-          <label className="block text-sm text-gray-600 dark:text-gray-300">
-            End
-          </label>
-          <Input type="datetime-local" {...register("ended_at")} />
-          {formState.errors.ended_at && <FieldError message={formState.errors.ended_at.message} />}
-        </div>
-
-        <div className="sm:col-span-2">
-          <label className="block text-sm text-gray-600 dark:text-gray-300">
-            Notes
-          </label>
-          <Input
-            type="text"
-            placeholder="Optional notes"
+        <FormSection title="Notes">
+          <FormField htmlFor="notes" label="Notes (optional)" error={formState.errors.notes?.message}>
+          <Textarea
+            id="notes"
+            rows={4}
+            maxLength={1000}
+            placeholder="Add anything useful about this session."
+            aria-invalid={Boolean(formState.errors.notes)}
+            aria-describedby={formState.errors.notes ? "notes-error" : undefined}
             {...register("notes")}
           />
-          {formState.errors.notes && <FieldError message={formState.errors.notes.message} />}
-        </div>
-      </div>
+          </FormField>
+        </FormSection>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-end border-t border-border pt-5">
         <Button type="submit" disabled={formState.isSubmitting}>
+          <Save aria-hidden="true" className="size-4" />
           {formState.isSubmitting ? "Saving…" : "Save Entry"}
         </Button>
       </div>
-    </form>
+      </form>
+      </CardContent>
+    </Card>
   );
 }
 
-function FieldError({ message }: { message?: string }) {
-  return message ? <p className="mt-1 text-xs text-red-500">{message}</p> : null;
+function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="space-y-4" aria-labelledby={`new-entry-${title.toLowerCase().replaceAll(" ", "-").replace("&", "and")}`}>
+      <h2 id={`new-entry-${title.toLowerCase().replaceAll(" ", "-").replace("&", "and")}`} className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
 }

@@ -107,9 +107,9 @@ export default function EntriesTable({
                     <div><dt className="text-xs text-muted-foreground">Fuel</dt><dd className="mt-1 font-medium tabular-nums">{formatCurrency(entry.fuel_cost_cents)}</dd></div>
                   </dl>
                   {entry.notes && <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{entry.notes}</p>}
-                  <div className="mt-3 flex justify-end gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => setEditing(entry)}><Pencil aria-hidden="true" className="size-4" />Edit</Button>
-                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => onDelete(entry.id)} disabled={busyId === entry.id}><Trash2 aria-hidden="true" className="size-4" />{busyId === entry.id ? "Deleting..." : "Delete"}</Button>
+                  <div className="mt-3 flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setEditing(entry)}><Pencil aria-hidden="true" className="size-4" />Edit</Button>
+                    <Button variant="outline" size="sm" className="border-destructive/30 text-destructive hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive" onClick={() => onDelete(entry.id)} disabled={busyId === entry.id}><Trash2 aria-hidden="true" className="size-4" />{busyId === entry.id ? "Deleting..." : "Delete"}</Button>
                   </div>
                 </article>
               );
@@ -119,7 +119,7 @@ export default function EntriesTable({
           <div className="hidden md:block">
             <table className="w-full table-fixed text-sm">
               <thead className="border-b text-xs text-muted-foreground"><tr>
-                <th className="w-[25%] pb-3 text-left font-medium">Session</th><th className="w-[17%] pb-3 text-left font-medium">Work</th><th className="w-[19%] pb-3 text-right font-medium">Earnings</th><th className="w-[12%] pb-3 text-right font-medium">Fuel</th><th className="w-[17%] pb-3 text-right font-medium">Take-home</th><th className="w-[10%] pb-3 text-right font-medium"><span className="sr-only">Actions</span></th>
+                <th className="w-[21%] pb-3 text-left font-medium">Session</th><th className="w-[14%] pb-3 text-left font-medium">Work</th><th className="w-[16%] pb-3 text-right font-medium">Earnings</th><th className="w-[10%] pb-3 text-right font-medium">Fuel</th><th className="w-[15%] pb-3 text-right font-medium">Take-home</th><th className="w-[24%] pb-3 text-right font-medium"><span className="sr-only">Actions</span></th>
               </tr></thead>
               <tbody className="divide-y divide-border">
                 {entries.map((entry) => {
@@ -131,9 +131,9 @@ export default function EntriesTable({
                     <td className="py-3 pr-3 text-right align-top tabular-nums"><p className="font-medium">{formatCurrency(entry.gross_cents)}</p><p className="mt-0.5 text-xs text-muted-foreground">+{formatCurrency(entry.tips_cents)} tips</p></td>
                     <td className="py-3 pr-3 text-right align-top text-muted-foreground tabular-nums">{formatCurrency(entry.fuel_cost_cents)}</td>
                     <td className="py-3 pr-3 text-right align-top font-semibold tabular-nums">{takeHome === null ? "—" : formatCurrency(takeHome)}</td>
-                    <td className="py-3 align-top"><div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" aria-label={`Edit ${entry.platform} entry from ${date}`} onClick={() => setEditing(entry)}><Pencil aria-hidden="true" className="size-4" /></Button>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" aria-label={`${busyId === entry.id ? "Deleting" : "Delete"} ${entry.platform} entry from ${date}`} onClick={() => onDelete(entry.id)} disabled={busyId === entry.id}><Trash2 aria-hidden="true" className="size-4" /></Button>
+                    <td className="py-3 align-top"><div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" aria-label={`Edit ${entry.platform} entry from ${date}`} onClick={() => setEditing(entry)}><Pencil aria-hidden="true" className="size-4" />Edit</Button>
+                      <Button variant="outline" size="sm" className="border-destructive/30 text-destructive hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive" aria-label={`${busyId === entry.id ? "Deleting" : "Delete"} ${entry.platform} entry from ${date}`} onClick={() => onDelete(entry.id)} disabled={busyId === entry.id}><Trash2 aria-hidden="true" className="size-4" />{busyId === entry.id ? "Deleting..." : "Delete"}</Button>
                     </div></td>
                   </tr>;
                 })}

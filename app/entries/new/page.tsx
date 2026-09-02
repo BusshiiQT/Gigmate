@@ -11,6 +11,7 @@ import { isPlatform } from "@/lib/validation";
 import type { EntryRow } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
+import { Copy } from "lucide-react";
 
 export default function NewEntryPage() {
   return (
@@ -80,10 +81,14 @@ function NewEntryClient() {
   };
 
   return (
-    <main className="mx-auto max-w-3xl space-y-4 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold">New Entry</h1>
-        <Button variant="outline" onClick={duplicateLast} disabled={busy}>
+    <main className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">New Entry</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Log a new gig session.</p>
+        </div>
+        <Button className="self-start" variant="outline" size="sm" onClick={duplicateLast} disabled={busy}>
+          <Copy aria-hidden="true" className="size-4" />
           {busy ? "Loading..." : "Duplicate last entry"}
         </Button>
       </div>
